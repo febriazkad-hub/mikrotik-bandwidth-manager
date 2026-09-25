@@ -33,6 +33,13 @@ document.addEventListener('DOMContentLoaded', () => {
     initChart();
     initWebSocket();
     refreshAllData();
+
+    // Support direct hash navigation (e.g. #logs or #tab-logs)
+    const hash = window.location.hash.replace('#', '');
+    if (hash === 'logs' || hash === 'tab-logs') {
+        switchTab('tab-logs');
+    }
+
     // Periodic refresh of full device list every 5 seconds
     setInterval(refreshAllData, 5000);
 });

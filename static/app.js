@@ -1,6 +1,6 @@
 // MikroTik Smart Bandwidth Manager v2 - Client Application
 let allDevices = [];
-let activeFilter = 'all';
+let activeFilter = localStorage.getItem('deviceFilter') || 'all';
 let activePresetId = null;
 let trafficChart = null;
 let chartLabels = [];
@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Periodic refresh of full device list every 5 seconds
+    setFilter(activeFilter);
     setInterval(refreshAllData, 5000);
 });
 
@@ -129,6 +130,7 @@ async function fetchDevices() {
 // ----------------- DEVICE LIST RENDERING -----------------
 function setFilter(filter) {
     activeFilter = filter;
+    localStorage.setItem('deviceFilter', filter);
     document.querySelectorAll('.filter-chip').forEach(btn => {
         btn.classList.remove('bg-indigo-600', 'text-white');
         btn.classList.add('bg-slate-800', 'text-slate-300');
@@ -164,6 +166,8 @@ function renderDeviceList() {
 
         if (!matchSearch) return false;
 
+        if (activeFilter === 'online') return d.status === 'bound';
+        if (activeFilter === 'offline') return d.status !== 'bound';
         if (activeFilter === 'full') return d.rate_mode === 'full';
         if (activeFilter === 'limited') return ['stream_15m', 'stream_10m', 'standard_4m', 'sosmed_2m', 'low_1m', 'custom'].includes(d.rate_mode);
         if (activeFilter === 'blocked') return d.rate_mode === 'blocked';
@@ -204,9 +208,15 @@ function renderDeviceCard(dev) {
 
     const upSpeed = dev.upload_rate && dev.upload_rate !== '0bps' ? dev.upload_rate : '0 bps';
     const downSpeed = dev.download_rate && dev.download_rate !== '0bps' ? dev.download_rate : '0 bps';
+    const statusBadge = isOnline
+        ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>ONLINE</span>'
+        : '<span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[10px] font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>OFFLINE</span>';
+    const cardClass = isOnline
+        ? 'device-card bg-slate-900/90 border border-slate-800 hover:border-indigo-500/50 rounded-2xl p-4 shadow-lg flex flex-col justify-between transition'
+        : 'device-card bg-slate-950/60 border border-dashed border-slate-800 opacity-65 hover:opacity-90 rounded-2xl p-4 shadow-lg flex flex-col justify-between transition';
 
     return `
-        <div class="device-card bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-lg flex flex-col justify-between">
+        <div class="${cardClass}">
             <!-- Card Header -->
             <div class="flex items-start justify-between gap-3 mb-3">
                 <!-- Device Icon & Info -->
@@ -217,10 +227,10 @@ function renderDeviceCard(dev) {
                     </div>
                     <div class="min-w-0">
                         <div class="flex items-center gap-1.5">
-                            <h4 class="text-sm font-semibold text-white truncate cursor-pointer hover:text-indigo-400 transition" 
-                                onclick="openEditDeviceModal('${dev.ip}', '${dev.mac}', '${escapeQuotes(dev.alias_name)}', '${dev.device_type}', '${escapeQuotes(dev.notes)}')">
+                            <h4 class="text-sm font-semibold ${isOnline ? 'text-white' : 'text-slate-400'} truncate">
                                 ${escapeHtml(dev.alias_name)}
                             </h4>
+                            ${statusBadge}
                             ${dev.is_static ? '<span class="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-mono" title="Static DHCP Lease">STATIC</span>' : ''}
                         </div>
                         <p class="text-xs text-slate-400 font-mono truncate">${dev.ip} <span class="text-slate-600">•</span> ${dev.mac}</p>
@@ -268,12 +278,18 @@ function renderDeviceCard(dev) {
                 </button>
             </div>
 
-            <!-- Bottom Extra Tools: Custom Slider, WOL, Static IP -->
+            <!-- Bottom Extra Tools: Custom Slider, Rename, WOL, Static IP -->
             <div class="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-800/50 text-[11px]">
-                <button onclick="openCustomSpeedModal('${dev.ip}', '${dev.mac}', '${escapeQuotes(dev.alias_name)}')" 
-                        class="text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1">
-                    <i class="fa-solid fa-sliders"></i> Slider Kustom
-                </button>
+                <div class="flex items-center space-x-3">
+                    <button onclick="openCustomSpeedModal('${dev.ip}', '${dev.mac}', '${escapeQuotes(dev.alias_name)}')" 
+                            class="text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1">
+                        <i class="fa-solid fa-sliders"></i> Slider
+                    </button>
+                    <button onclick="openEditDeviceModal('${dev.ip}', '${dev.mac}', '${escapeQuotes(dev.alias_name)}', '${dev.device_type}', '${escapeQuotes(dev.notes)}')" 
+                            class="text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1" title="Rename dan sinkron ke DHCP Lease MikroTik">
+                        <i class="fa-solid fa-pen-to-square"></i> Rename
+                    </button>
+                </div>
                 
                 <div class="flex items-center space-x-3">
                     ${supportsWol ? `
@@ -470,6 +486,7 @@ async function submitDeviceAlias() {
     }
 
     closeModal('modal-edit-device');
+    showToast(`Menyimpan alias dan sinkron DHCP comment MikroTik untuk ${ip}...`, 'info');
     try {
         const res = await fetch(`/api/devices/${ip}/alias`, {
             method: 'POST',

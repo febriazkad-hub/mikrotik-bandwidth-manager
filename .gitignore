@@ -19,6 +19,9 @@ __pycache__/
 *$py.class
 .pytest_cache/
 
+# Planning / Local Agent State
+.planning/
+
 # IDE & OS
 .vscode/
 .idea/

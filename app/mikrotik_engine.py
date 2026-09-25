@@ -507,10 +507,30 @@ class MikroTikEngine:
 
         return False, "Mode tidak dikenali"
 
+    def _ros_safe_text(self, value: str) -> str:
+        """Sanitize user text before embedding in a quoted RouterOS CLI string."""
+        return (value or "").replace("\\", "").replace('"', "'").replace(";", "-").strip()[:80]
+
+    async def update_dhcp_lease_comment(self, ip: str, mac: str, alias_name: str) -> Tuple[bool, str]:
+        """Sync dashboard alias to MikroTik DHCP lease comment so Winbox/CLI show the same name."""
+        clean_alias = self._ros_safe_text(alias_name)
+        clean_mac = (mac or "").upper().strip()
+        if not clean_mac:
+            return False, "MAC perangkat kosong; comment DHCP Lease tidak bisa disinkronkan."
+
+        count = (await self.exec_cmd(f'/ip dhcp-server lease print count-only where mac-address="{clean_mac}"')).strip()
+        if count in ["", "0"]:
+            return False, f"DHCP Lease dengan MAC {clean_mac} tidak ditemukan di MikroTik. Alias lokal tetap tersimpan."
+
+        await self.exec_cmd(f'/ip dhcp-server lease set [find mac-address="{clean_mac}"] comment="{clean_alias}"')
+        msg = f"Nama perangkat {ip} disinkronkan ke MikroTik DHCP Lease: {clean_alias}"
+        await db_instance.log_action("SYNC_DHCP_COMMENT", ip, clean_mac, msg)
+        return True, msg
+
     async def make_static_lease(self, ip: str, mac: str, comment: Optional[str] = None) -> Tuple[bool, str]:
         await self.exec_cmd(f'/ip dhcp-server lease make-static [find address="{ip}"]')
         if comment:
-            clean_comment = comment.replace('"', '')
+            clean_comment = self._ros_safe_text(comment)
             await self.exec_cmd(f'/ip dhcp-server lease set [find address="{ip}"] comment="{clean_comment}"')
         msg = f"IP {ip} ({mac}) berhasil dijadikan Static DHCP Lease"
         await db_instance.log_action("MAKE_STATIC", ip, mac, msg)

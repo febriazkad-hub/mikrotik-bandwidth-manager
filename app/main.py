@@ -186,8 +186,18 @@ async def set_alias(ip: str, req: DeviceAliasRequest):
         group_name=req.group_name or "Default",
         notes=req.notes or ""
     )
-    await db_instance.log_action("SET_ALIAS", ip, req.mac, f"Mengubah alias '{req.alias_name}' ({req.device_type})")
-    return ApiResponse(success=True, message=f"Nama alias '{req.alias_name}' berhasil disimpan.")
+
+    ros_ok, ros_msg = await engine_instance.update_dhcp_lease_comment(ip, req.mac, req.alias_name)
+    detail = f"Mengubah alias '{req.alias_name}' ({req.device_type})"
+    if ros_ok:
+        detail += " + sinkron ke comment DHCP MikroTik"
+    else:
+        detail += f"; sinkron RouterOS dilewati/gagal: {ros_msg}"
+    await db_instance.log_action("SET_ALIAS", ip, req.mac, detail)
+
+    if ros_ok:
+        return ApiResponse(success=True, message=f"Nama alias '{req.alias_name}' berhasil disimpan dan disinkronkan ke MikroTik.")
+    return ApiResponse(success=True, message=f"Nama alias '{req.alias_name}' berhasil disimpan lokal. Catatan: {ros_msg}")
 
 @app.post("/api/devices/{ip}/static", response_model=ApiResponse)
 async def make_static(ip: str, req: MakeStaticRequest):

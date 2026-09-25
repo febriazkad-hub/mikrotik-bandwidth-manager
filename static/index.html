@@ -224,6 +224,8 @@
                 </div>
                 <div class="flex items-center space-x-2 overflow-x-auto pb-1">
                     <button onclick="setFilter('all')" id="filter-all" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition">Semua</button>
+                    <button onclick="setFilter('online')" id="filter-online" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">🟢 Online</button>
+                    <button onclick="setFilter('offline')" id="filter-offline" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">⚪ Offline</button>
                     <button onclick="setFilter('full')" id="filter-full" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">🚀 Full Speed</button>
                     <button onclick="setFilter('limited')" id="filter-limited" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">⚡ Terlimit</button>
                     <button onclick="setFilter('blocked')" id="filter-blocked" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">⛔ Diblokir</button>
@@ -665,7 +667,7 @@
         <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-scale-up">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-base font-semibold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-pen-to-square text-cyan-400"></i> Edit Nama Perangkat
+                    <i class="fa-solid fa-pen-to-square text-cyan-400"></i> Rename Perangkat & Sinkron ke MikroTik
                 </h3>
                 <button onclick="closeModal('modal-edit-device')" class="text-slate-400 hover:text-white text-lg">&times;</button>
             </div>
@@ -674,6 +676,10 @@
             <input type="hidden" id="edit-dev-mac">
 
             <div class="space-y-4 mb-6">
+                <div class="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3 text-[11px] text-cyan-200 leading-relaxed">
+                    <i class="fa-solid fa-circle-info text-cyan-300 mr-1"></i>
+                    Nama akan disimpan di database dashboard dan disinkronkan ke comment DHCP Lease MikroTik agar terlihat juga di Winbox/CLI.
+                </div>
                 <div>
                     <label class="block text-xs text-slate-400 mb-1">Nama / Alias Perangkat:</label>
                     <input type="text" id="edit-dev-alias" placeholder="contoh: HP Febriazka" 
@@ -803,6 +809,6 @@
     <div id="toast-container" class="fixed bottom-6 right-6 z-[9999] space-y-2 pointer-events-none"></div>
 
     <!-- JS Application Script -->
-    <script src="/static/app.js?v=2.1.3"></script>
+    <script src="/static/app.js?v=2.2.0"></script>
 </body>
 </html>

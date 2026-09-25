@@ -1,0 +1,32 @@
+{
+  "mikrotik": {
+    "host": "192.168.77.1",
+    "port": 221,
+    "username": "admin",
+    "password": "rty",
+    "timeout": 5
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 5678,
+    "admin_pin": "",
+    "debug": false
+  },
+  "telegram": {
+    "enabled": false,
+    "bot_token": "",
+    "allowed_chat_ids": [],
+    "notify_new_devices": true,
+    "notify_wan_failover": true
+  },
+  "bandwidth_defaults": {
+    "full_speed_queue": "PRIORITY-FULL-GROUP",
+    "default_limit_queue": "LIMIT-PER-DEVICE-4M",
+    "guest_limit_queue": "LIMIT-GUEST-2M",
+    "wan_interface_primary": "ether1",
+    "wan_interface_backup": "wlan1"
+  },
+  "database": {
+    "db_path": "data/mikrotik_manager.db"
+  }
+}

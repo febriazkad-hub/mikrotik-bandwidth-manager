@@ -1,0 +1,66 @@
+name: mikrotik_bandwidth_manager
+services:
+    mikrotik-bandwidth-manager:
+        build:
+            context: /home/mdgi/apps/MikroTik_Bandwidth_Manager
+            dockerfile: Dockerfile
+        cpu_shares: 90
+        command: []
+        container_name: mikrotik-bandwidth-manager
+        deploy:
+            resources:
+                limits:
+                    memory: "8251244544"
+        environment:
+            ADMIN_PIN: ""
+            MIKROTIK_HOST: 192.168.77.1
+            MIKROTIK_PASS: rty
+            MIKROTIK_PORT: "221"
+            MIKROTIK_USER: admin
+            TELEGRAM_ALLOWED_CHAT_ID: ""
+            TELEGRAM_BOT_TOKEN: ""
+            WEB_PORT: "5678"
+        hostname: mikrotik-bandwidth-manager
+        healthcheck:
+            test:
+                - CMD
+                - curl
+                - -f
+                - http://localhost:5678/api/health
+            timeout: 10s
+            interval: 30s
+            retries: 3
+        image: mikrotik-bandwidth-manager:latest
+        labels:
+            category: Network
+            icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/mikrotik-light.svg
+            port_map: "5688"
+            title: MikroTik Bandwidth Manager
+        networks:
+            default: null
+        ports:
+            - mode: ingress
+              target: 5678
+              published: "5688"
+              protocol: tcp
+        restart: unless-stopped
+        volumes:
+            - type: bind
+              source: /home/mdgi/apps/MikroTik_Bandwidth_Manager/data
+              target: /app/data
+              bind:
+                create_host_path: true
+networks:
+    default:
+        name: mikrotik_bandwidth_manager_default
+x-casaos:
+    author: self
+    category: self
+    hostname: 192.168.77.16
+    icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/mikrotik-light.svg
+    index: /
+    is_uncontrolled: false
+    port_map: "5688"
+    scheme: http
+    title:
+        custom: Mikrotik Bandwidth

@@ -1,0 +1,26 @@
+# Environment & Secrets
+.env
+*.env
+*.bak
+
+# SQLite Data & Database Files
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# Test Binary Files
+*.zip
+*.tar.gz
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

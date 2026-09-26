@@ -109,6 +109,30 @@ def parse_monitor_traffic(output: str) -> Tuple[int, int]:
     total_tx = sum(tx_rates)
     return total_rx, total_tx
 
+def format_bps(value: int) -> str:
+    if value >= 1_000_000_000:
+        return f"{value / 1_000_000_000:.1f}Gbps"
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:.1f}Mbps"
+    if value >= 1_000:
+        return f"{value / 1_000:.1f}kbps"
+    return f"{value}bps"
+
+def parse_slash_pair_bps(value: str) -> Tuple[int, int]:
+    if not value or '/' not in value:
+        return 0, 0
+    left, right = value.split('/', 1)
+    return parse_rate_to_bps(left), parse_rate_to_bps(right)
+
+def extract_queue_fields(block_text: str) -> Dict[str, str]:
+    """Extract RouterOS simple queue key=value fields from wrapped detail/stats blocks."""
+    fields = {}
+    for key in ["name", "max-limit", "priority", "rate", "bytes"]:
+        match = re.search(rf'{re.escape(key)}=("[^"]*"|\S+)', block_text)
+        if match:
+            fields[key] = match.group(1).strip('"')
+    return fields
+
 import os
 
 class MikroTikEngine:
@@ -294,31 +318,41 @@ class MikroTikEngine:
     async def get_all_devices(self) -> List[Device]:
         leases_raw = await self.exec_cmd("/ip dhcp-server lease print detail")
         queues_raw = await self.exec_cmd("/queue simple print detail")
+        queues_stats_raw = await self.exec_cmd("/queue simple print stats detail")
         meta_dict = await db_instance.get_all_metadata()
 
         vip_targets = []
         custom_queues = {}
+        queue_stats = {}
+        vip_group_stats = {"rate": "0bps/0bps", "bytes": "0/0", "upload_bps": 0, "download_bps": 0}
+
+        for qb in parse_ros_detail(queues_stats_raw):
+            fields = extract_queue_fields(qb)
+            name = fields.get("name")
+            if not name:
+                continue
+            rate_str = fields.get("rate", "0bps/0bps")
+            up_bps, down_bps = parse_slash_pair_bps(rate_str)
+            stat = {
+                "rate": rate_str,
+                "bytes": fields.get("bytes", "0/0"),
+                "upload_bps": up_bps,
+                "download_bps": down_bps,
+            }
+            queue_stats[name] = stat
+            if name == "PRIORITY-FULL-GROUP":
+                vip_group_stats = stat
 
         for qb in parse_ros_detail(queues_raw):
-            name = None
-            max_limit = "0/0"
-            priority = "8/8"
-            bytes_str = "0/0"
-            rate_str = "0bps/0bps"
-
-            for line in qb.splitlines():
-                line = line.strip()
-                for part in line.split():
-                    if part.startswith("name="):
-                        name = part.replace("name=", "").replace("\"", "")
-                    elif part.startswith("max-limit="):
-                        max_limit = part.replace("max-limit=", "")
-                    elif part.startswith("priority="):
-                        priority = part.replace("priority=", "")
-                    elif part.startswith("rate="):
-                        rate_str = part.replace("rate=", "")
-                    elif part.startswith("bytes="):
-                        bytes_str = part.replace("bytes=", "")
+            fields = extract_queue_fields(qb)
+            name = fields.get("name")
+            max_limit = fields.get("max-limit", "0/0")
+            priority = fields.get("priority", "8/8")
+            stat = queue_stats.get(name or "", {})
+            bytes_str = stat.get("bytes", fields.get("bytes", "0/0"))
+            rate_str = stat.get("rate", fields.get("rate", "0bps/0bps"))
+            up_bps = stat.get("upload_bps", 0)
+            down_bps = stat.get("download_bps", 0)
 
             if name == "PRIORITY-FULL-GROUP":
                 vip_targets = extract_ips_from_target(qb)
@@ -330,7 +364,9 @@ class MikroTikEngine:
                         "max_limit": max_limit,
                         "priority": int(priority.split("/")[0]) if "/" in priority else 8,
                         "rate": rate_str,
-                        "bytes": bytes_str
+                        "bytes": bytes_str,
+                        "upload_bps": up_bps,
+                        "download_bps": down_bps,
                     }
 
         devices_dict = {}
@@ -370,6 +406,9 @@ class MikroTikEngine:
                 q_name = None
                 up_rate = "0 bps"
                 down_rate = "0 bps"
+                up_bps = 0
+                down_bps = 0
+                total_bytes = 0
 
                 # Priority logic: If an individual LIMIT-{IP} exists, it takes precedence!
                 if address in custom_queues:
@@ -377,10 +416,12 @@ class MikroTikEngine:
                     q_name = cq["name"]
                     prio = cq["priority"]
                     max_lim = cq["max_limit"]
-                    rates = cq["rate"].split("/")
-                    if len(rates) == 2:
-                        up_rate = rates[0]
-                        down_rate = rates[1]
+                    up_bps = cq.get("upload_bps", 0)
+                    down_bps = cq.get("download_bps", 0)
+                    up_rate = format_bps(up_bps)
+                    down_rate = format_bps(down_bps)
+                    byte_up, byte_down = cq.get("bytes", "0/0").split("/", 1) if "/" in cq.get("bytes", "0/0") else ("0", "0")
+                    total_bytes = int(byte_up) + int(byte_down) if byte_up.isdigit() and byte_down.isdigit() else 0
 
                     if max_lim in ["1k/1k", "0/0", "0/0bps"]:
                         rate_mode = "blocked"
@@ -409,6 +450,13 @@ class MikroTikEngine:
                     current_limit = "🚀 Full Speed (1 Gbps / Bypass)"
                     prio = 1
                     q_name = "PRIORITY-FULL-GROUP"
+                    active_vip_count = max(1, len([ip for ip in vip_targets if ip in devices_dict or ip == address]))
+                    up_bps = int(vip_group_stats.get("upload_bps", 0) / active_vip_count)
+                    down_bps = int(vip_group_stats.get("download_bps", 0) / active_vip_count)
+                    up_rate = format_bps(up_bps)
+                    down_rate = format_bps(down_bps)
+                    byte_up, byte_down = vip_group_stats.get("bytes", "0/0").split("/", 1) if "/" in vip_group_stats.get("bytes", "0/0") else ("0", "0")
+                    total_bytes = int((int(byte_up) + int(byte_down)) / active_vip_count) if byte_up.isdigit() and byte_down.isdigit() else 0
 
                 meta = meta_dict.get(mac, {})
                 alias = meta.get("alias_name") or comment or hostname or f"Device-{address.split('.')[-1]}"
@@ -429,12 +477,30 @@ class MikroTikEngine:
                     max_limit_raw=custom_queues.get(address, {}).get("max_limit", "0/0"),
                     upload_rate=up_rate,
                     download_rate=down_rate,
+                    upload_bps=up_bps,
+                    download_bps=down_bps,
+                    total_bytes=total_bytes,
                     queue_name=q_name,
                     priority=prio,
                     notes=meta.get("notes", ""),
                     last_seen=last_seen
                 )
                 devices_dict[address] = dev
+
+        # Second pass: assign a stable equal-share estimate for all VIP devices from group queue stats.
+        vip_devices = [d for d in devices_dict.values() if d.queue_name == "PRIORITY-FULL-GROUP"]
+        if vip_devices:
+            vip_count = len(vip_devices)
+            vip_up_bps = int(vip_group_stats.get("upload_bps", 0) / vip_count)
+            vip_down_bps = int(vip_group_stats.get("download_bps", 0) / vip_count)
+            byte_up, byte_down = vip_group_stats.get("bytes", "0/0").split("/", 1) if "/" in vip_group_stats.get("bytes", "0/0") else ("0", "0")
+            vip_total_bytes = int((int(byte_up) + int(byte_down)) / vip_count) if byte_up.isdigit() and byte_down.isdigit() else 0
+            for d in vip_devices:
+                d.upload_bps = vip_up_bps
+                d.download_bps = vip_down_bps
+                d.upload_rate = format_bps(vip_up_bps)
+                d.download_rate = format_bps(vip_down_bps)
+                d.total_bytes = vip_total_bytes
 
         sorted_devices = sorted(
             list(devices_dict.values()),

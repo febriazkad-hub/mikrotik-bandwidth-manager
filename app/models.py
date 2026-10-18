@@ -7,6 +7,7 @@ class Device(BaseModel):
     hostname: Optional[str] = "Unknown"
     alias_name: Optional[str] = None
     device_type: str = "phone"  # phone, pc, laptop, tv, iot, server, guest, unknown
+    group_name: str = "Default"
     vendor: Optional[str] = "Unknown Vendor"
     status: str = "offline"     # bound, waiting, online, offline
     is_static: bool = False

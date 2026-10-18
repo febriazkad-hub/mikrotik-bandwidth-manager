@@ -34,11 +34,25 @@ document.addEventListener('DOMContentLoaded', () => {
     initWebSocket();
     refreshAllData();
 
-    // Support direct hash navigation (e.g. #logs or #tab-logs)
+    // Support direct hash navigation (e.g. #logs or #tab-security)
     const hash = window.location.hash.replace('#', '');
-    if (hash === 'logs' || hash === 'tab-logs') {
-        switchTab('tab-logs');
-    }
+    const validTabs = ['devices', 'traffic', 'schedules', 'tools', 'firewall', 'security', 'logs'];
+    const requestedTab = hash === 'logs' ? 'logs' : hash.replace('tab-', '');
+    switchTab(validTabs.includes(requestedTab) ? `tab-${requestedTab}` : 'tab-devices');
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-controls', `tab-${btn.id.replace('tab-btn-', '')}`);
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeTopmostModal();
+    });
+    document.querySelectorAll('[id^="modal-"]').forEach(modal => {
+        modal.addEventListener('mousedown', event => {
+            if (event.target === modal && modal.id !== 'modal-terminal') closeModal(modal.id);
+        });
+    });
 
     // Periodic refresh of full device list every 5 seconds
     setFilter(activeFilter);
@@ -51,6 +65,7 @@ function switchTab(tabId) {
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('border-indigo-500', 'text-indigo-400');
         btn.classList.add('border-transparent', 'text-slate-400');
+        btn.setAttribute('aria-selected', 'false');
     });
 
     const targetTab = document.getElementById(tabId);
@@ -60,6 +75,11 @@ function switchTab(tabId) {
     if (activeBtn) {
         activeBtn.classList.remove('border-transparent', 'text-slate-400');
         activeBtn.classList.add('border-indigo-500', 'text-indigo-400');
+        activeBtn.setAttribute('aria-selected', 'true');
+    }
+
+    if (window.location.hash !== `#${tabId}`) {
+        history.replaceState(null, '', `#${tabId}`);
     }
 
     if (tabId === 'tab-logs') {
@@ -185,6 +205,7 @@ function renderDeviceList() {
     }
 
     container.innerHTML = filtered.map(dev => renderDeviceCard(dev)).join('');
+    container.onclick = handleDeviceCardAction;
 }
 
 function renderDeviceCard(dev) {
@@ -214,33 +235,35 @@ function renderDeviceCard(dev) {
     const cardClass = isOnline
         ? 'device-card bg-slate-900/90 border border-slate-800 hover:border-indigo-500/50 rounded-2xl p-4 shadow-lg flex flex-col justify-between transition'
         : 'device-card bg-slate-950/60 border border-dashed border-slate-800 opacity-65 hover:opacity-90 rounded-2xl p-4 shadow-lg flex flex-col justify-between transition';
+    const staticBadge = dev.is_static
+        ? '<span class="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-mono" title="Static DHCP Lease">STATIC</span>'
+        : '';
 
     return `
-        <div class="${cardClass}">
+        <div class="${cardClass}" data-device-ip="${escapeHtml(dev.ip)}">
             <!-- Card Header -->
-            <div class="flex items-start justify-between gap-3 mb-3">
+            <div class="device-card-header flex items-start justify-between gap-3 mb-3">
                 <!-- Device Icon & Info -->
-                <div class="flex items-center space-x-3 min-w-0">
+                <div class="device-identity flex items-center space-x-3 min-w-0">
                     <div class="relative w-11 h-11 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
                         <i class="fa-solid ${iconClass} text-slate-200 text-lg"></i>
                         <span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-600'} border-2 border-slate-900"></span>
                     </div>
                     <div class="min-w-0">
-                        <div class="flex items-center gap-1.5">
-                            <h4 class="text-sm font-semibold ${isOnline ? 'text-white' : 'text-slate-400'} truncate">
+                        <div class="device-title-row flex items-center gap-1.5">
+                            <h4 class="text-sm font-semibold ${isOnline ? 'text-white' : 'text-slate-400'} truncate" title="${escapeHtml(dev.alias_name)}">
                                 ${escapeHtml(dev.alias_name)}
                             </h4>
-                            ${statusBadge}
-                            ${dev.is_static ? '<span class="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-mono" title="Static DHCP Lease">STATIC</span>' : ''}
+                            <span class="device-header-status flex items-center gap-1.5">${statusBadge}${staticBadge}</span>
                         </div>
-                        <p class="text-xs text-slate-400 font-mono truncate">${dev.ip} <span class="text-slate-600">•</span> ${dev.mac}</p>
+                        <p class="device-address text-xs text-slate-400 font-mono" title="${escapeHtml(dev.ip)} • ${escapeHtml(dev.mac)}">${escapeHtml(dev.ip)} <span class="text-slate-600">•</span> ${escapeHtml(dev.mac)}</p>
                     </div>
                 </div>
 
                 <!-- Rate Limit Status Pill -->
-                <div class="shrink-0">
+                <div class="device-rate-badge shrink-0">
                     <span class="px-2.5 py-1 text-xs font-semibold rounded-full border ${badgeBg} flex items-center gap-1">
-                        ${badgeText}
+                        ${escapeHtml(badgeText)}
                     </span>
                 </div>
             </div>
@@ -256,23 +279,23 @@ function renderDeviceCard(dev) {
 
             <!-- Quick Action 1-Click Buttons -->
             <div class="grid grid-cols-5 gap-1.5">
-                <button onclick="setSpeed('${dev.ip}', '${dev.mac}', 'full')" 
+                <button type="button" data-device-action="speed" data-mode="full"
                         class="px-1.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${dev.rate_mode === 'full' ? 'bg-emerald-600 text-white shadow-emerald-500/20 shadow' : 'bg-slate-800 hover:bg-emerald-900/40 text-slate-300 hover:text-emerald-300'}">
                     🚀 Full
                 </button>
-                <button onclick="setSpeed('${dev.ip}', '${dev.mac}', 'stream_10m')" 
+                <button type="button" data-device-action="speed" data-mode="stream_10m"
                         class="px-1.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${dev.rate_mode === 'stream_10m' ? 'bg-cyan-600 text-white' : 'bg-slate-800 hover:bg-cyan-900/40 text-slate-300 hover:text-cyan-300'}">
                     🎬 10M
                 </button>
-                <button onclick="setSpeed('${dev.ip}', '${dev.mac}', 'standard_4m')" 
+                <button type="button" data-device-action="speed" data-mode="standard_4m"
                         class="px-1.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${dev.rate_mode === 'standard_4m' ? 'bg-indigo-600 text-white' : 'bg-slate-800 hover:bg-indigo-900/40 text-slate-300 hover:text-indigo-300'}">
                     ⚡ 4M
                 </button>
-                <button onclick="setSpeed('${dev.ip}', '${dev.mac}', 'sosmed_2m')" 
+                <button type="button" data-device-action="speed" data-mode="sosmed_2m"
                         class="px-1.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${dev.rate_mode === 'sosmed_2m' ? 'bg-indigo-700 text-white' : 'bg-slate-800 hover:bg-indigo-900/40 text-slate-300 hover:text-indigo-300'}">
                     📱 2M
                 </button>
-                <button onclick="setSpeed('${dev.ip}', '${dev.mac}', 'blocked')" 
+                <button type="button" data-device-action="speed" data-mode="blocked"
                         class="px-1.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${dev.rate_mode === 'blocked' ? 'bg-rose-600 text-white' : 'bg-slate-800 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300'}">
                     ⛔ Blok
                 </button>
@@ -281,11 +304,11 @@ function renderDeviceCard(dev) {
             <!-- Bottom Extra Tools: Custom Slider, Rename, WOL, Static IP -->
             <div class="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-800/50 text-[11px]">
                 <div class="flex items-center space-x-3">
-                    <button onclick="openCustomSpeedModal('${dev.ip}', '${dev.mac}', '${escapeQuotes(dev.alias_name)}')" 
+                    <button type="button" data-device-action="custom"
                             class="text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1">
                         <i class="fa-solid fa-sliders"></i> Slider
                     </button>
-                    <button onclick="openEditDeviceModal('${dev.ip}', '${dev.mac}', '${escapeQuotes(dev.alias_name)}', '${dev.device_type}', '${escapeQuotes(dev.notes)}')" 
+                    <button type="button" data-device-action="edit"
                             class="text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1" title="Rename dan sinkron ke DHCP Lease MikroTik">
                         <i class="fa-solid fa-pen-to-square"></i> Rename
                     </button>
@@ -293,14 +316,14 @@ function renderDeviceCard(dev) {
                 
                 <div class="flex items-center space-x-3">
                     ${supportsWol ? `
-                        <button onclick="sendWol('${dev.ip}', '${dev.mac}', '${escapeQuotes(dev.alias_name)}')" 
+                        <button type="button" data-device-action="wol"
                                 class="text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1" title="Kirim Magic Packet Wake-on-LAN">
                             <i class="fa-solid fa-power-off"></i> Wake (WOL)
                         </button>
                     ` : ''}
 
                     ${!dev.is_static ? `
-                        <button onclick="makeStatic('${dev.ip}', '${dev.mac}', '${escapeQuotes(dev.alias_name)}')" 
+                        <button type="button" data-device-action="static"
                                 class="text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1">
                             <i class="fa-solid fa-lock"></i> Kunci Static IP
                         </button>
@@ -311,6 +334,39 @@ function renderDeviceCard(dev) {
             </div>
         </div>
     `;
+}
+
+// ----------------- DEVICE CARD EVENT DELEGATION -----------------
+// All device-card button actions route here to avoid unsafe inline-handler injection
+function handleDeviceCardAction(event) {
+    const btn = event.target.closest('[data-device-action]');
+    if (!btn) return;
+    const action = btn.getAttribute('data-device-action');
+    const card = btn.closest('.device-card');
+    if (!card) return;
+    const ip = card.getAttribute('data-device-ip');
+    const dev = allDevices.find(d => d.ip === ip);
+    if (!dev) return;
+    event.stopPropagation();
+    switch (action) {
+        case 'speed': {
+            const mode = btn.getAttribute('data-mode');
+            if (mode) setSpeed(dev.ip, dev.mac, mode);
+            break;
+        }
+        case 'custom':
+            openCustomSpeedModal(dev.ip, dev.mac, dev.alias_name);
+            break;
+        case 'edit':
+            openEditDeviceModal(dev.ip, dev.mac, dev.alias_name, dev.device_type, dev.notes, dev.group_name || 'Default');
+            break;
+        case 'wol':
+            sendWol(dev.ip, dev.mac, dev.alias_name);
+            break;
+        case 'static':
+            makeStatic(dev.ip, dev.mac, dev.alias_name);
+            break;
+    }
 }
 
 // ----------------- SPEED & WOL ACTIONS -----------------
@@ -464,11 +520,12 @@ async function submitCustomSpeed() {
     }
 }
 
-function openEditDeviceModal(ip, mac, alias, type, notes) {
+function openEditDeviceModal(ip, mac, alias, type, notes, groupName = 'Default') {
     document.getElementById('edit-dev-ip').value = ip;
     document.getElementById('edit-dev-mac').value = mac;
     document.getElementById('edit-dev-alias').value = alias || '';
     document.getElementById('edit-dev-type').value = type || 'phone';
+    document.getElementById('edit-dev-group').value = groupName || 'Default';
     document.getElementById('edit-dev-notes').value = notes || '';
     openModal('modal-edit-device');
 }
@@ -478,6 +535,7 @@ async function submitDeviceAlias() {
     const mac = document.getElementById('edit-dev-mac').value;
     const alias_name = document.getElementById('edit-dev-alias').value.trim();
     const device_type = document.getElementById('edit-dev-type').value;
+    const group_name = document.getElementById('edit-dev-group').value.trim() || 'Default';
     const notes = document.getElementById('edit-dev-notes').value.trim();
 
     if (!alias_name) {
@@ -491,7 +549,7 @@ async function submitDeviceAlias() {
         const res = await fetch(`/api/devices/${ip}/alias`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip, mac, alias_name, device_type, notes })
+            body: JSON.stringify({ ip, mac, alias_name, device_type, group_name, notes })
         });
         const data = await res.json();
         if (data.success) {
@@ -574,6 +632,22 @@ async function deleteSchedule(id) {
         } else {
             showToast(data.message || 'Gagal menghapus jadwal', 'error');
         }
+    } catch (e) {
+        showToast(`Error: ${e.message}`, 'error');
+    }
+}
+
+async function toggleSchedule(id, isEnabled) {
+    try {
+        const res = await fetch(`/api/schedules/${id}/toggle`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_enabled: isEnabled })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Gagal mengubah status jadwal');
+        showToast(data.message, 'success');
+        await fetchSchedules();
     } catch (e) {
         showToast(`Error: ${e.message}`, 'error');
     }
@@ -665,9 +739,9 @@ async function fetchArpTable() {
         }
         tbody.innerHTML = entries.map(e => `
             <tr class="hover:bg-slate-800/40">
-                <td class="px-4 py-2 text-cyan-300 font-bold">${e.ip}</td>
-                <td class="px-4 py-2 text-slate-200">${e.mac}</td>
-                <td class="px-4 py-2 text-slate-400">${e.interface}</td>
+                <td class="px-4 py-2 text-cyan-300 font-bold">${escapeHtml(e.ip || '-')}</td>
+                <td class="px-4 py-2 text-slate-200">${escapeHtml(e.mac || '-')}</td>
+                <td class="px-4 py-2 text-slate-400">${escapeHtml(e.interface || '-')}</td>
                 <td class="px-4 py-2">${e.dynamic ? '<span class="text-emerald-400 text-[10px]">DYNAMIC</span>' : '<span class="text-cyan-400 text-[10px]">STATIC</span>'}</td>
             </tr>
         `).join('');
@@ -909,6 +983,15 @@ function closeModal(id) {
     }
 }
 
+function closeTopmostModal() {
+    const openModals = [...document.querySelectorAll('[id^="modal-"]')]
+        .filter(modal => !modal.classList.contains('hidden'));
+    const topmost = openModals.at(-1);
+    if (!topmost) return;
+    if (topmost.id === 'modal-terminal') closeTerminal();
+    else closeModal(topmost.id);
+}
+
 // ----------------- AUDIT LOGS & ROUTEROS HISTORY -----------------
 let rosLogsState = {
     page: 1,
@@ -1123,11 +1206,11 @@ async function fetchAuditLogs() {
         }
         tbody.innerHTML = logs.map(l => `
             <tr class="hover:bg-slate-800/40">
-                <td class="px-6 py-2.5 text-slate-400">${l.timestamp}</td>
-                <td class="px-6 py-2.5 font-bold text-indigo-300">${l.action}</td>
-                <td class="px-6 py-2.5 text-slate-200">${l.target_ip || '-'}</td>
-                <td class="px-6 py-2.5 text-slate-300">${escapeHtml(l.detail)}</td>
-                <td class="px-6 py-2.5 text-slate-500 uppercase">${l.source}</td>
+                <td class="px-6 py-2.5 text-slate-400">${escapeHtml(l.timestamp || '-')}</td>
+                <td class="px-6 py-2.5 font-bold text-indigo-300">${escapeHtml(l.action || '-')}</td>
+                <td class="px-6 py-2.5 text-slate-200">${escapeHtml(l.target_ip || '-')}</td>
+                <td class="px-6 py-2.5 text-slate-300">${escapeHtml(l.detail || '-')}</td>
+                <td class="px-6 py-2.5 text-slate-500 uppercase">${escapeHtml(l.source || '-')}</td>
             </tr>
         `).join('');
     } catch (e) {
@@ -1150,17 +1233,24 @@ async function fetchSchedules() {
             `;
             return;
         }
-        container.innerHTML = schedules.map(s => `
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-                <div>
-                    <h4 class="text-sm font-semibold text-white">${escapeHtml(s.name)}</h4>
-                    <p class="text-xs text-slate-400 font-mono">Target: ${escapeHtml(s.device_alias || s.device_ip)} (${s.device_ip}) • Jam: ${s.start_time} s/d ${s.end_time} • Aksi: ${s.action_mode}</p>
+        container.innerHTML = schedules.map(s => {
+            const isEnabled = Boolean(s.is_enabled);
+            return `
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between gap-4 ${isEnabled ? '' : 'opacity-65'}">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                            <h4 class="text-sm font-semibold text-white">${escapeHtml(s.name)}</h4>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${isEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-500'}">${isEnabled ? 'AKTIF' : 'NONAKTIF'}</span>
+                        </div>
+                        <p class="text-xs text-slate-400 font-mono mt-1">Target: ${escapeHtml(s.device_alias || s.device_ip)} (${escapeHtml(s.device_ip)}) • Jam: ${escapeHtml(s.start_time)} s/d ${escapeHtml(s.end_time)} • Aksi: ${escapeHtml(s.action_mode)}</p>
+                    </div>
+                    <div class="flex items-center space-x-2 shrink-0">
+                        <button onclick="toggleSchedule(${Number(s.id)}, ${!isEnabled})" class="px-3 py-1 rounded-lg bg-slate-800 text-indigo-400 text-xs font-semibold transition">${isEnabled ? 'Nonaktifkan' : 'Aktifkan'}</button>
+                        <button onclick="deleteSchedule(${Number(s.id)})" class="px-3 py-1 rounded-lg bg-rose-900/30 hover:bg-rose-900/60 text-rose-400 text-xs font-semibold transition">Hapus</button>
+                    </div>
                 </div>
-                <div class="flex items-center space-x-2">
-                    <button onclick="deleteSchedule(${s.id})" class="px-3 py-1 rounded-lg bg-rose-900/30 hover:bg-rose-900/60 text-rose-400 text-xs font-semibold transition">Hapus</button>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     } catch (e) {
         console.error("Failed to fetch schedules:", e);
     }
@@ -1179,8 +1269,8 @@ function initChart() {
                 {
                     label: 'Download (Mbps)',
                     data: chartRxData,
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderColor: '#188038',
+                    backgroundColor: 'rgba(24, 128, 56, 0.08)',
                     fill: true,
                     tension: 0.35,
                     borderWidth: 2,
@@ -1189,8 +1279,8 @@ function initChart() {
                 {
                     label: 'Upload (Mbps)',
                     data: chartTxData,
-                    borderColor: '#6366f1',
-                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    borderColor: '#0b57d0',
+                    backgroundColor: 'rgba(11, 87, 208, 0.08)',
                     fill: true,
                     tension: 0.35,
                     borderWidth: 2,
@@ -1204,18 +1294,18 @@ function initChart() {
             animation: false,
             scales: {
                 x: {
-                    grid: { color: 'rgba(51, 65, 85, 0.3)' },
-                    ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } }
+                    grid: { color: 'rgba(95, 99, 104, 0.12)' },
+                    ticks: { color: '#5f6368', font: { family: 'Roboto Mono', size: 10 } }
                 },
                 y: {
-                    grid: { color: 'rgba(51, 65, 85, 0.3)' },
-                    ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } },
+                    grid: { color: 'rgba(95, 99, 104, 0.12)' },
+                    ticks: { color: '#5f6368', font: { family: 'Roboto Mono', size: 10 } },
                     beginAtZero: true
                 }
             },
             plugins: {
                 legend: {
-                    labels: { color: '#cbd5e1', font: { family: 'Inter', size: 11 } }
+                    labels: { color: '#3c4043', font: { family: 'Roboto', size: 11 } }
                 }
             }
         }
@@ -1301,9 +1391,4 @@ function setText(id, text) {
 function escapeHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function escapeQuotes(str) {
-    if (!str) return '';
-    return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }

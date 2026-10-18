@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="id" class="dark">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#ffffff">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -25,8 +26,8 @@
                         }
                     },
                     fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'monospace']
+                        sans: ['Google Sans Text', 'Roboto', 'Arial', 'sans-serif'],
+                        mono: ['Roboto Mono', 'monospace']
                     }
                 }
             }
@@ -37,7 +38,7 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- xterm.js CDN -->
@@ -96,13 +97,13 @@
 
                 <!-- Action Buttons -->
                 <div class="flex items-center space-x-2">
-                    <button onclick="openTerminal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition" title="Buka SSH Web Terminal">
+                    <button onclick="openTerminal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition" title="Buka SSH Web Terminal" aria-label="Buka SSH Web Terminal">
                         <i class="fa-solid fa-terminal"></i> <span class="hidden sm:inline">Terminal</span>
                     </button>
-                    <button onclick="openSettingsModal()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition" title="Pengaturan Sistem & Reboot">
+                    <button onclick="openSettingsModal()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition" title="Pengaturan Sistem & Reboot" aria-label="Buka pengaturan sistem">
                         <i class="fa-solid fa-gear"></i>
                     </button>
-                    <button onclick="refreshAllData()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition" title="Refresh Data">
+                    <button onclick="refreshAllData()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition" title="Refresh Data" aria-label="Perbarui data dashboard">
                         <i id="btn-refresh-icon" class="fa-solid fa-arrows-rotate"></i>
                     </button>
                 </div>
@@ -112,6 +113,14 @@
 
     <!-- MAIN CONTAINER -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+
+        <div class="dashboard-intro">
+            <div>
+                <h1>Ringkasan jaringan</h1>
+                <p>Pantau koneksi dan atur bandwidth perangkat dari satu tempat.</p>
+            </div>
+            <span class="router-ready">Router terhubung</span>
+        </div>
 
         <!-- GLOBAL STATS & PRESETS BAR -->
         <section class="mb-8">
@@ -152,7 +161,7 @@
                         <i class="fa-solid fa-mobile-screen-button text-indigo-400"></i>
                     </div>
                     <div class="mt-2 flex items-baseline gap-2">
-                        <span id="stat-online-count" class="text-2xl font-bold font-mono text-white">0</span>
+                        <span id="stat-online-count" class="text-2xl font-bold font-mono text-white">—</span>
                         <span class="text-xs text-slate-400">online</span>
                     </div>
                 </div>
@@ -162,7 +171,7 @@
                         <i class="fa-solid fa-rocket text-emerald-400"></i>
                     </div>
                     <div class="mt-2 flex items-baseline gap-2">
-                        <span id="stat-vip-count" class="text-2xl font-bold font-mono text-emerald-400">0</span>
+                        <span id="stat-vip-count" class="text-2xl font-bold font-mono text-emerald-400">—</span>
                         <span class="text-xs text-slate-400">perangkat</span>
                     </div>
                 </div>
@@ -172,7 +181,7 @@
                         <i class="fa-solid fa-gauge-high text-amber-400"></i>
                     </div>
                     <div class="mt-2 flex items-baseline gap-2">
-                        <span id="stat-limit-count" class="text-2xl font-bold font-mono text-amber-400">0</span>
+                        <span id="stat-limit-count" class="text-2xl font-bold font-mono text-amber-400">—</span>
                         <span class="text-xs text-slate-400">perangkat</span>
                     </div>
                 </div>
@@ -182,7 +191,7 @@
                         <i class="fa-solid fa-memory text-cyan-400"></i>
                     </div>
                     <div class="mt-2 flex items-baseline gap-2">
-                        <span id="stat-free-ram" class="text-2xl font-bold font-mono text-cyan-400">0 MiB</span>
+                        <span id="stat-free-ram" class="text-2xl font-bold font-mono text-cyan-400">—</span>
                     </div>
                 </div>
             </div>
@@ -209,7 +218,7 @@
                 <i class="fa-solid fa-lock"></i> Keamanan & Backup
             </button>
             <button onclick="switchTab('tab-logs')" id="tab-btn-logs" class="tab-btn pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 shrink-0">
-                <i class="fa-solid fa-scroll text-amber-400"></i> Log Sistem MikroTik
+                <i class="fa-solid fa-scroll text-amber-400"></i> Log Sistem
                 <span class="bg-indigo-500/20 text-indigo-300 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">ROS</span>
             </button>
         </div>
@@ -224,11 +233,11 @@
                 </div>
                 <div class="flex items-center space-x-2 overflow-x-auto pb-1">
                     <button onclick="setFilter('all')" id="filter-all" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition">Semua</button>
-                    <button onclick="setFilter('online')" id="filter-online" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">🟢 Online</button>
-                    <button onclick="setFilter('offline')" id="filter-offline" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">⚪ Offline</button>
-                    <button onclick="setFilter('full')" id="filter-full" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">🚀 Full Speed</button>
-                    <button onclick="setFilter('limited')" id="filter-limited" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">⚡ Terlimit</button>
-                    <button onclick="setFilter('blocked')" id="filter-blocked" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">⛔ Diblokir</button>
+                    <button onclick="setFilter('online')" id="filter-online" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"><i class="fa-solid fa-circle text-emerald-400 text-[8px]"></i> Online</button>
+                    <button onclick="setFilter('offline')" id="filter-offline" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"><i class="fa-regular fa-circle text-slate-500 text-[8px]"></i> Offline</button>
+                    <button onclick="setFilter('full')" id="filter-full" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"><i class="fa-solid fa-bolt text-emerald-400"></i> Full Speed</button>
+                    <button onclick="setFilter('limited')" id="filter-limited" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"><i class="fa-solid fa-gauge-high text-amber-400"></i> Terlimit</button>
+                    <button onclick="setFilter('blocked')" id="filter-blocked" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"><i class="fa-solid fa-ban text-rose-400"></i> Diblokir</button>
                 </div>
             </div>
 
@@ -809,6 +818,6 @@
     <div id="toast-container" class="fixed bottom-6 right-6 z-[9999] space-y-2 pointer-events-none"></div>
 
     <!-- JS Application Script -->
-    <script src="/static/app.js?v=2.2.0"></script>
+    <script src="/static/app.js?v=3.0.0"></script>
 </body>
 </html>

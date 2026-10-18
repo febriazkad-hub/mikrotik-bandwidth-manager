@@ -469,6 +469,7 @@ class MikroTikEngine:
                     hostname=hostname,
                     alias_name=alias,
                     device_type=dtype,
+                    group_name=meta.get("group_name") or "Default",
                     vendor=vendor,
                     status=status if status else "bound",
                     is_static=not is_dynamic,

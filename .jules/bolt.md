@@ -1,0 +1,3 @@
+## 2026-10-22 - [Performance] Pre-compiling RegEx in CLI Parsers
+**Learning:** This application makes heavy use of RouterOS CLI output parsing, especially when retrieving statistics for many devices or queues (e.g., `get_all_devices`). Dynamic regex compilation inside loops processing CLI output strings (like `extract_queue_fields`) adds significant overhead and CPU cycles when dealing with hundreds or thousands of lines.
+**Action:** When extracting multiple key-value pairs or fields from string outputs, prefer pre-compiling a single regular expression using `re.compile()` outside the function and use `finditer()` or `search()` on it instead of repeatedly constructing regex strings using string interpolation and `re.escape()` inside tight loops.

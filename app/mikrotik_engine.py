@@ -124,13 +124,15 @@ def parse_slash_pair_bps(value: str) -> Tuple[int, int]:
     left, right = value.split('/', 1)
     return parse_rate_to_bps(left), parse_rate_to_bps(right)
 
+# Pre-compile the regex to avoid dynamic compilation overhead inside the parsing loop
+# This significantly improves performance when parsing large RouterOS CLI outputs.
+QUEUE_FIELD_PATTERN = re.compile(r'(name|max-limit|priority|rate|bytes)=("[^"]*"|\S+)')
+
 def extract_queue_fields(block_text: str) -> Dict[str, str]:
     """Extract RouterOS simple queue key=value fields from wrapped detail/stats blocks."""
     fields = {}
-    for key in ["name", "max-limit", "priority", "rate", "bytes"]:
-        match = re.search(rf'{re.escape(key)}=("[^"]*"|\S+)', block_text)
-        if match:
-            fields[key] = match.group(1).strip('"')
+    for match in QUEUE_FIELD_PATTERN.finditer(block_text):
+        fields[match.group(1)] = match.group(2).strip('"')
     return fields
 
 import os

@@ -318,9 +318,24 @@ class MikroTikEngine:
             await self.set_vip_targets(clean_vips)
 
     async def get_all_devices(self) -> List[Device]:
-        leases_raw = await self.exec_cmd("/ip dhcp-server lease print detail")
-        queues_raw = await self.exec_cmd("/queue simple print detail")
-        queues_stats_raw = await self.exec_cmd("/queue simple print stats detail")
+        # Bolt ⚡: Batch SSH commands to minimize channel setup latency
+        cmd = ':put "---LEASES---"; /ip dhcp-server lease print detail; :put "---QUEUES---"; /queue simple print detail; :put "---STATS---"; /queue simple print stats detail'
+        raw_batch = await self.exec_cmd(cmd)
+
+        sections = {"---LEASES---": [], "---QUEUES---": [], "---STATS---": []}
+        current_sec = "DEFAULT"
+        for line in raw_batch.splitlines():
+            sline = line.strip()
+            if sline in ["---LEASES---", "---QUEUES---", "---STATS---", ":put ---LEASES---", ":put ---QUEUES---", ":put ---STATS---"]:
+                current_sec = sline.replace(":put ", "")
+            else:
+                if current_sec in sections:
+                    sections[current_sec].append(line)
+
+        leases_raw = "\n".join(sections["---LEASES---"])
+        queues_raw = "\n".join(sections["---QUEUES---"])
+        queues_stats_raw = "\n".join(sections["---STATS---"])
+
         meta_dict = await db_instance.get_all_metadata()
 
         vip_targets = []

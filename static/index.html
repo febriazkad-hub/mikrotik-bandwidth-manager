@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#ffffff">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>MikroTik Smart Bandwidth Manager v2</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#1e1b4b'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Google Sans Text', 'Roboto', 'Arial', 'sans-serif'],
+                        mono: ['Roboto Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- xterm.js CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-indigo-500 selection:text-white pb-16">
+
+    <!-- TOP NAVBAR -->
+    <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Brand & Logo -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center shadow-indigo-500/20 shadow-lg">
+                        <i class="fa-solid fa-network-wired text-white text-lg"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent">MikroTik Manager</span>
+                            <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                ROS v6.49.15
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-400 font-mono" id="nav-uptime">Uptime: --</p>
+                    </div>
+                </div>
+
+                <!-- Center Telemetry Badges (Desktop) -->
+                <div class="hidden md:flex items-center space-x-4">
+                    <div class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-xs">
+                        <i class="fa-solid fa-globe text-cyan-400"></i>
+                        <span class="text-slate-400">WAN:</span>
+                        <span id="nav-wan" class="font-semibold text-cyan-300">ether1</span>
+                    </div>
+                    <div class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-xs">
+                        <i class="fa-solid fa-arrow-down text-emerald-400"></i>
+                        <span class="text-slate-400">DL:</span>
+                        <span id="nav-rx" class="font-mono font-bold text-emerald-400">0 bps</span>
+                    </div>
+                    <div class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-xs">
+                        <i class="fa-solid fa-arrow-up text-indigo-400"></i>
+                        <span class="text-slate-400">UL:</span>
+                        <span id="nav-tx" class="font-mono font-bold text-indigo-400">0 bps</span>
+                    </div>
+                    <div class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-xs">
+                        <i class="fa-solid fa-microchip text-amber-400"></i>
+                        <span class="text-slate-400">CPU:</span>
+                        <span id="nav-cpu" class="font-mono font-bold text-amber-400">0%</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex items-center space-x-2">
+                    <button onclick="openTerminal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition" title="Buka SSH Web Terminal" aria-label="Buka SSH Web Terminal">
+                        <i class="fa-solid fa-terminal"></i> <span class="hidden sm:inline">Terminal</span>
+                    </button>
+                    <button onclick="openSettingsModal()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition" title="Pengaturan Sistem & Reboot" aria-label="Buka pengaturan sistem">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                    <button onclick="refreshAllData()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition" title="Refresh Data" aria-label="Perbarui data dashboard">
+                        <i id="btn-refresh-icon" class="fa-solid fa-arrows-rotate"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+
+        <div class="dashboard-intro">
+            <div>
+                <h1>Ringkasan jaringan</h1>
+                <p>Pantau koneksi dan atur bandwidth perangkat dari satu tempat.</p>
+            </div>
+            <span class="router-ready">Router terhubung</span>
+        </div>
+
+        <!-- GLOBAL STATS & PRESETS BAR -->
+        <section class="mb-8">
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 mb-6 shadow-xl backdrop-blur">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-indigo-400"></i> Preset Jaringan Global (1-Klik)
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Ubah mode pembagian bandwidth seluruh rumah seketika</p>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <button onclick="applyPreset('gaming_work')" id="preset-btn-gaming_work" class="preset-btn px-3 py-2 rounded-xl bg-slate-800 hover:bg-indigo-900/50 border border-slate-700 hover:border-indigo-500/50 text-xs font-medium flex items-center justify-center gap-2 transition group">
+                            <i class="fa-solid fa-gamepad text-indigo-400 group-hover:scale-110 transition-transform"></i>
+                            <span>Gaming & Work</span>
+                        </button>
+                        <button onclick="applyPreset('fair_share')" id="preset-btn-fair_share" class="preset-btn px-3 py-2 rounded-xl bg-slate-800 hover:bg-cyan-900/50 border border-slate-700 hover:border-cyan-500/50 text-xs font-medium flex items-center justify-center gap-2 transition group">
+                            <i class="fa-solid fa-scale-balanced text-cyan-400 group-hover:scale-110 transition-transform"></i>
+                            <span>Family (4M PCQ)</span>
+                        </button>
+                        <button onclick="applyPreset('all_unrestricted')" id="preset-btn-all_unrestricted" class="preset-btn px-3 py-2 rounded-xl bg-slate-800 hover:bg-emerald-900/50 border border-slate-700 hover:border-emerald-500/50 text-xs font-medium flex items-center justify-center gap-2 transition group">
+                            <i class="fa-solid fa-bolt text-emerald-400 group-hover:scale-110 transition-transform"></i>
+                            <span>All Full Speed</span>
+                        </button>
+                        <button onclick="applyPreset('night_mode')" id="preset-btn-night_mode" class="preset-btn px-3 py-2 rounded-xl bg-slate-800 hover:bg-purple-900/50 border border-slate-700 hover:border-purple-500/50 text-xs font-medium flex items-center justify-center gap-2 transition group">
+                            <i class="fa-solid fa-moon text-purple-400 group-hover:scale-110 transition-transform"></i>
+                            <span>Night Saver</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Metric Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-medium text-slate-400">Total Perangkat</span>
+                        <i class="fa-solid fa-mobile-screen-button text-indigo-400"></i>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="stat-online-count" class="text-2xl font-bold font-mono text-white">—</span>
+                        <span class="text-xs text-slate-400">online</span>
+                    </div>
+                </div>
+                <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-medium text-slate-400">Full Speed (Bypass)</span>
+                        <i class="fa-solid fa-rocket text-emerald-400"></i>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="stat-vip-count" class="text-2xl font-bold font-mono text-emerald-400">—</span>
+                        <span class="text-xs text-slate-400">perangkat</span>
+                    </div>
+                </div>
+                <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-medium text-slate-400">Terlimitasi</span>
+                        <i class="fa-solid fa-gauge-high text-amber-400"></i>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="stat-limit-count" class="text-2xl font-bold font-mono text-amber-400">—</span>
+                        <span class="text-xs text-slate-400">perangkat</span>
+                    </div>
+                </div>
+                <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-medium text-slate-400">Memori RAM Bebas</span>
+                        <i class="fa-solid fa-memory text-cyan-400"></i>
+                    </div>
+                    <div class="mt-2 flex items-baseline gap-2">
+                        <span id="stat-free-ram" class="text-2xl font-bold font-mono text-cyan-400">—</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- NAVIGATION TABS -->
+        <div class="flex border-b border-slate-800 mb-6 space-x-6 overflow-x-auto pb-1 text-sm font-medium">
+            <button onclick="switchTab('tab-devices')" id="tab-btn-devices" class="tab-btn pb-3 border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 shrink-0">
+                <i class="fa-solid fa-devices"></i> Perangkat & Bandwidth
+            </button>
+            <button onclick="switchTab('tab-traffic')" id="tab-btn-traffic" class="tab-btn pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 shrink-0">
+                <i class="fa-solid fa-chart-line"></i> Grafik Real-Time
+            </button>
+            <button onclick="switchTab('tab-schedules')" id="tab-btn-schedules" class="tab-btn pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 shrink-0">
+                <i class="fa-solid fa-clock"></i> Jadwal & Otomasi
+            </button>
+            <button onclick="switchTab('tab-tools')" id="tab-btn-tools" class="tab-btn pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 shrink-0">
+                <i class="fa-solid fa-screwdriver-wrench"></i> Alat Diagnostik
+            </button>
+            <button onclick="switchTab('tab-firewall')" id="tab-btn-firewall" class="tab-btn pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 shrink-0">
+                <i class="fa-solid fa-shield-halved"></i> Firewall
+            </button>
+            <button onclick="switchTab('tab-security')" id="tab-btn-security" class="tab-btn pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 shrink-0">
+                <i class="fa-solid fa-lock"></i> Keamanan & Backup
+            </button>
+            <button onclick="switchTab('tab-logs')" id="tab-btn-logs" class="tab-btn pb-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 shrink-0">
+                <i class="fa-solid fa-scroll text-amber-400"></i> Log Sistem
+                <span class="bg-indigo-500/20 text-indigo-300 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">ROS</span>
+            </button>
+        </div>
+
+        <!-- ================= TAB 1: DEVICES & BANDWIDTH ================= -->
+        <section id="tab-devices" class="tab-content block">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div class="relative flex-1 max-w-md">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                    <input type="text" id="search-input" oninput="renderDeviceList()" placeholder="Cari nama, IP, MAC, atau vendor..." 
+                           class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition shadow-inner">
+                </div>
+                <div class="flex items-center space-x-2 overflow-x-auto pb-1">
+                    <button onclick="setFilter('all')" id="filter-all" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition">Semua</button>
+                    <button onclick="setFilter('online')" id="filter-online" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"><i class="fa-solid fa-circle text-emerald-400 text-[8px]"></i> Online</button>
+                    <button onclick="setFilter('offline')" id="filter-offline" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"><i class="fa-regular fa-circle text-slate-500 text-[8px]"></i> Offline</button>
+                    <button onclick="setFilter('full')" id="filter-full" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"><i class="fa-solid fa-bolt text-emerald-400"></i> Full Speed</button>
+                    <button onclick="setFilter('limited')" id="filter-limited" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"><i class="fa-solid fa-gauge-high text-amber-400"></i> Terlimit</button>
+                    <button onclick="setFilter('blocked')" id="filter-blocked" class="filter-chip px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"><i class="fa-solid fa-ban text-rose-400"></i> Diblokir</button>
+                </div>
+            </div>
+
+            <!-- Device Cards Grid -->
+            <div id="device-list-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="col-span-full py-16 text-center text-slate-500">
+                    <i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-indigo-500"></i>
+                    <p class="text-sm">Sedang memuat daftar perangkat dari MikroTik...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 2: REAL-TIME TRAFFIC ================= -->
+        <section id="tab-traffic" class="tab-content hidden">
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-200">Throughput Internet Real-Time (WAN)</h3>
+                        <p class="text-xs text-slate-400">Memantau kecepatan download dan upload live setiap 1 detik</p>
+                    </div>
+                    <div class="flex items-center space-x-4 font-mono text-xs">
+                        <span class="flex items-center gap-1.5 text-emerald-400"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Download: <span id="graph-rx-label" class="font-bold">0 bps</span></span>
+                        <span class="flex items-center gap-1.5 text-indigo-400"><span class="w-2.5 h-2.5 rounded-full bg-indigo-400"></span> Upload: <span id="graph-tx-label" class="font-bold">0 bps</span></span>
+                    </div>
+                </div>
+                <div class="h-72 w-full">
+                    <canvas id="trafficChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 3: SCHEDULES & AUTOMATION ================= -->
+        <section id="tab-schedules" class="tab-content hidden">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h3 class="text-base font-semibold text-slate-200">Jadwal & Otomasi Parental Control</h3>
+                    <p class="text-xs text-slate-400">Batasi kecepatan atau putus koneksi perangkat pada jam-jam tertentu</p>
+                </div>
+                <button onclick="openAddScheduleModal()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 transition flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Tambah Jadwal
+                </button>
+            </div>
+
+            <div id="schedule-list-container" class="space-y-3">
+                <!-- Rendered by JS -->
+            </div>
+        </section>
+
+        <!-- ================= TAB 4: DIAGNOSTIC TOOLS ================= -->
+        <section id="tab-tools" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Ping Tool -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <h3 class="text-sm font-semibold text-slate-200 mb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-satellite-dish text-emerald-400"></i> Ping Test (RouterOS)
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-4">Uji konektivitas dan latensi langsung dari router MikroTik.</p>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="tool-ping-target" value="8.8.8.8" placeholder="IP atau Domain" 
+                               class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+                        <button onclick="runToolPing()" id="btn-tool-ping" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition flex items-center gap-1">
+                            <span>Ping</span>
+                        </button>
+                    </div>
+                    <pre id="tool-ping-output" class="bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-[11px] font-mono text-slate-300 h-44 overflow-y-auto whitespace-pre-wrap">Siap menjalankan ping test...</pre>
+                </div>
+
+                <!-- Traceroute Tool -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <h3 class="text-sm font-semibold text-slate-200 mb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-route text-indigo-400"></i> Traceroute
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-4">Lacak rute hop-by-hop dari router ke server tujuan.</p>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="tool-trace-target" value="google.com" placeholder="IP atau Domain" 
+                               class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+                        <button onclick="runToolTraceroute()" id="btn-tool-trace" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition flex items-center gap-1">
+                            <span>Trace</span>
+                        </button>
+                    </div>
+                    <pre id="tool-trace-output" class="bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-[11px] font-mono text-slate-300 h-44 overflow-y-auto whitespace-pre-wrap">Siap menjalankan traceroute...</pre>
+                </div>
+
+                <!-- DNS Lookup Tool -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <h3 class="text-sm font-semibold text-slate-200 mb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-magnifying-glass-location text-cyan-400"></i> DNS Resolve
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-4">Resolusi nama domain menggunakan DNS cache MikroTik.</p>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="tool-dns-target" value="cloudflare.com" placeholder="contoh: google.com" 
+                               class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+                        <button onclick="runToolDns()" id="btn-tool-dns" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-semibold transition flex items-center gap-1">
+                            <span>Resolve</span>
+                        </button>
+                    </div>
+                    <pre id="tool-dns-output" class="bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-[11px] font-mono text-slate-300 h-44 overflow-y-auto whitespace-pre-wrap">Siap melakukan DNS lookup...</pre>
+                </div>
+            </div>
+
+            <!-- Live ARP Table -->
+            <div class="mt-6 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-table-list text-amber-400"></i> Live ARP Table (/ip arp)
+                        </h3>
+                        <p class="text-xs text-slate-400">Tabel pemetaan IP ke MAC Address yang terdeteksi di antarmuka LAN</p>
+                    </div>
+                    <button onclick="fetchArpTable()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 rounded-xl border border-slate-700 transition">
+                        <i class="fa-solid fa-rotate-right"></i> Refresh ARP
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-800/50 text-slate-400 uppercase font-mono">
+                            <tr>
+                                <th class="px-4 py-2.5">IP Address</th>
+                                <th class="px-4 py-2.5">MAC Address</th>
+                                <th class="px-4 py-2.5">Interface</th>
+                                <th class="px-4 py-2.5">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="arp-tbody" class="divide-y divide-slate-800 font-mono">
+                            <tr><td colspan="4" class="px-4 py-3 text-center text-slate-500">Memuat tabel ARP...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 5: FIREWALL VIEWER ================= -->
+        <section id="tab-firewall" class="tab-content hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-shield-halved text-indigo-400"></i> Firewall Rules Viewer
+                        </h3>
+                        <p class="text-xs text-slate-400">Aturan Filter, NAT, Mangle, dan Address Lists aktif di MikroTik</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button onclick="switchFirewallSubTab('filter')" id="fw-subtab-filter" class="fw-subtab-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white">Filter Rules</button>
+                        <button onclick="switchFirewallSubTab('nat')" id="fw-subtab-nat" class="fw-subtab-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300">NAT Rules</button>
+                        <button onclick="switchFirewallSubTab('mangle')" id="fw-subtab-mangle" class="fw-subtab-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300">Mangle</button>
+                        <button onclick="switchFirewallSubTab('address_list')" id="fw-subtab-address_list" class="fw-subtab-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300">Address Lists</button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <div id="firewall-content" class="min-h-[250px]">
+                        <!-- Rendered by JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 6: SECURITY & BACKUP ================= -->
+        <section id="tab-security" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Security Hardening Score -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col items-center justify-between text-center">
+                    <div class="w-full">
+                        <h3 class="text-sm font-semibold text-slate-200 mb-1 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-lock text-emerald-400"></i> Skor Keamanan Router
+                        </h3>
+                        <p class="text-xs text-slate-400 mb-6">Evaluasi hardening keamanan MikroTik</p>
+                        
+                        <div class="relative w-36 h-36 mx-auto flex items-center justify-center">
+                            <div id="security-score-circle" class="w-32 h-32 rounded-full border-8 border-emerald-500/30 flex items-center justify-center bg-slate-950 shadow-inner">
+                                <span id="security-score-val" class="text-3xl font-bold font-mono text-emerald-400">100%</span>
+                            </div>
+                        </div>
+                        <p id="security-score-label" class="mt-4 text-xs font-semibold text-emerald-400">Sistem Sangat Aman</p>
+                    </div>
+
+                    <button onclick="fetchSecurityAudit()" class="mt-6 w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700 transition">
+                        <i class="fa-solid fa-arrows-rotate"></i> Re-Audit Keamanan
+                    </button>
+                </div>
+
+                <!-- Security Checklist -->
+                <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                    <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-clipboard-check text-indigo-400"></i> Checklist Security Hardening
+                    </h3>
+                    <div id="security-checklist-container" class="space-y-3">
+                        <!-- Rendered by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Router Configuration Backup Section -->
+            <div class="mt-6 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-floppy-disk text-cyan-400"></i> Backup & Export Konfigurasi Router
+                        </h3>
+                        <p class="text-xs text-slate-400">Ekspor seluruh konfigurasi RouterOS dalam format script `.rsc` untuk backup dan pemulihan cepat</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button onclick="exportConfig()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-eye"></i> Lihat Script .rsc
+                        </button>
+                        <a href="/api/backup/download" target="_blank" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-xs font-semibold text-white rounded-xl shadow-lg shadow-cyan-600/20 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-download"></i> Download .rsc
+                        </a>
+                    </div>
+                </div>
+                <pre id="backup-export-preview" class="bg-slate-950 border border-slate-800/80 rounded-xl p-4 text-[11px] font-mono text-slate-300 h-64 overflow-y-auto whitespace-pre-wrap">Klik tombol 'Lihat Script .rsc' untuk menampilkan konfigurasi router...</pre>
+            </div>
+        </section>
+
+        <!-- ================= TAB 7: LOGS & ROUTEROS HISTORY ================= -->
+        <section id="tab-logs" class="tab-content hidden space-y-4">
+            <!-- Sub-tab switcher -->
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-2">
+                    <button onclick="switchLogSubTab('ros')" id="log-subtab-ros" class="log-subtab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white flex items-center gap-2 transition">
+                        <i class="fa-solid fa-scroll text-indigo-200"></i> Log Sistem RouterOS (MikroTik)
+                    </button>
+                    <button onclick="switchLogSubTab('audit')" id="log-subtab-audit" class="log-subtab-btn px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white flex items-center gap-2 transition">
+                        <i class="fa-solid fa-list-check text-slate-400"></i> Aktivitas Bandwidth Manager
+                    </button>
+                </div>
+                <div class="text-xs text-slate-400 font-mono hidden sm:flex items-center gap-2">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span id="ros-logs-counter">Tersimpan Abadi di SQLite Debian 13</span>
+                </div>
+            </div>
+
+            <!-- SUBVIEW 1: ROUTEROS SYSTEM LOGS -->
+            <div id="subview-ros-logs" class="space-y-4">
+                <!-- Controls Bar -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-lg">
+                    <!-- Search & Topic Filter -->
+                    <div class="flex flex-wrap items-center gap-3 flex-1 min-w-[260px]">
+                        <div class="relative flex-1 min-w-[180px]">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                            <input type="text" id="ros-log-search" oninput="debounceRosSearch()" placeholder="Cari pesan log, IP, interface..." class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <select id="ros-log-topic-filter" onchange="filterRosLogs()" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500">
+                            <option value="all">Semua Topik</option>
+                            <option value="error">Critical & Error</option>
+                            <option value="warning">Warning</option>
+                            <option value="account">Account & Auth</option>
+                            <option value="dhcp">DHCP Server</option>
+                            <option value="sstp">VPN SSTP</option>
+                            <option value="system">System</option>
+                            <option value="wireless">Wireless</option>
+                            <option value="firewall">Firewall</option>
+                        </select>
+                    </div>
+
+                    <!-- Severity Quick Filters & Actions -->
+                    <div class="flex items-center gap-2">
+                        <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5 text-xs">
+                            <button onclick="setRosSeverityFilter('all')" id="sev-btn-all" class="ros-sev-btn px-2.5 py-1 rounded-lg font-medium text-white bg-indigo-600">Semua</button>
+                            <button onclick="setRosSeverityFilter('error')" id="sev-btn-error" class="ros-sev-btn px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-rose-400">Error</button>
+                            <button onclick="setRosSeverityFilter('warning')" id="sev-btn-warning" class="ros-sev-btn px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-amber-400">Warning</button>
+                            <button onclick="setRosSeverityFilter('account')" id="sev-btn-account" class="ros-sev-btn px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-emerald-400">Login</button>
+                        </div>
+                        <button onclick="syncRouterOSLogs()" id="btn-sync-ros-logs" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow">
+                            <i class="fa-solid fa-arrows-rotate"></i> Sinkron MikroTik
+                        </button>
+                        <button onclick="clearLocalRosLogs()" class="bg-slate-800 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 border border-slate-700/50 px-2.5 py-1.5 rounded-xl text-xs transition" title="Bersihkan log lokal">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-800/50 text-slate-400 uppercase font-mono">
+                                <tr>
+                                    <th class="px-5 py-3 w-28">Waktu ROS</th>
+                                    <th class="px-4 py-3 w-24">Level</th>
+                                    <th class="px-5 py-3 w-48">Topik</th>
+                                    <th class="px-5 py-3">Pesan Log</th>
+                                    <th class="px-5 py-3 w-40 text-right">Diarsipkan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ros-logs-tbody" class="divide-y divide-slate-800 font-mono">
+                                <tr><td colspan="5" class="px-6 py-6 text-center text-slate-500">Memuat log sistem MikroTik...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="px-5 py-3 bg-slate-950/60 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                        <span id="ros-logs-footer-info">Menampilkan log sistem</span>
+                        <div class="flex items-center gap-2">
+                            <button onclick="changeRosLogsPage(-1)" id="ros-prev-btn" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:pointer-events-none">Prev</button>
+                            <span id="ros-page-num" class="font-mono text-slate-200">1</span>
+                            <button onclick="changeRosLogsPage(1)" id="ros-next-btn" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:pointer-events-none">Next</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUBVIEW 2: BANDWIDTH MANAGER AUDIT LOGS -->
+            <div id="subview-audit-logs" class="hidden">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                    <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-slate-200">Riwayat Aktivitas & Perubahan Bandwidth Manager</h3>
+                        <button onclick="fetchAuditLogs()" class="text-xs text-indigo-400 hover:underline"><i class="fa-solid fa-rotate-right"></i> Refresh Log</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-800/50 text-slate-400 uppercase font-mono">
+                                <tr>
+                                    <th class="px-6 py-3">Waktu</th>
+                                    <th class="px-6 py-3">Aksi</th>
+                                    <th class="px-6 py-3">Target IP</th>
+                                    <th class="px-6 py-3">Keterangan</th>
+                                    <th class="px-6 py-3">Sumber</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logs-tbody" class="divide-y divide-slate-800 font-mono">
+                                <!-- Rendered by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ================= MODALS ================= -->
+
+    <!-- FIRST-RUN ONBOARDING SETUP WIZARD MODAL -->
+    <div id="modal-wizard" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-scale-up space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white">Setup Wizard: Quick Connect</h3>
+                        <p class="text-[11px] text-slate-400">Hubungkan dashboard ke router MikroTik Anda secara otomatis.</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('modal-wizard')" class="text-slate-400 hover:text-white text-lg">&times;</button>
+            </div>
+
+            <!-- Wizard Step 1: Credentials Form -->
+            <div class="space-y-3">
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="col-span-2">
+                        <label class="block text-[11px] font-semibold text-slate-300 mb-1">IP Router MikroTik:</label>
+                        <input type="text" id="wizard-ip" value="192.168.88.1" placeholder="192.168.88.1"
+                               class="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-300 mb-1">Port SSH:</label>
+                        <input type="number" id="wizard-port" value="22" placeholder="22"
+                               class="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-300 mb-1">Username:</label>
+                        <input type="text" id="wizard-user" value="admin" placeholder="admin"
+                               class="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-300 mb-1">Password:</label>
+                        <input type="password" id="wizard-pass" placeholder="(Bawaan: kosong)"
+                               class="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <button id="btn-wizard-probe" onclick="probeRouterConnection()" 
+                        class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30">
+                    <i class="fa-solid fa-bolt"></i> Tes & Deteksi Hardware Otomatis
+                </button>
+            </div>
+
+            <!-- Wizard Step 2: Auto-Discovery Result Box -->
+            <div id="wizard-discovery-box" class="hidden bg-slate-800/60 border border-slate-700 rounded-xl p-3.5 space-y-2.5 text-xs">
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                    <span class="text-slate-400">Model Perangkat:</span>
+                    <span id="wizard-res-model" class="font-mono font-bold text-emerald-400">hAP lite</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                    <span class="text-slate-400">Versi RouterOS:</span>
+                    <span id="wizard-res-version" class="font-mono text-slate-200">v6.49.15</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                    <span class="text-slate-400">Jalur Internet (WAN):</span>
+                    <span id="wizard-res-wan" class="font-mono text-cyan-300">ether1</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                    <span class="text-slate-400">Jaringan Lokal (LAN Bridge):</span>
+                    <span id="wizard-res-lan" class="font-mono text-indigo-300">bridge</span>
+                </div>
+
+                <div class="pt-1">
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" id="wizard-disable-fasttrack" checked class="mt-0.5 rounded border-slate-700 text-indigo-600 focus:ring-0">
+                        <span class="text-[11px] text-slate-300">
+                            <strong>Nonaktifkan FastTrack (Direkomendasikan)</strong>: Mengizinkan Simple Queue mengatur bandwidth secara 100% akurat tanpa memotong jalur kernel.
+                        </span>
+                    </label>
+                </div>
+
+                <button onclick="applyRouterSetup()" 
+                        class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30">
+                    <i class="fa-solid fa-check"></i> Simpan & Hubungkan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- IN-BROWSER SSH TERMINAL MODAL -->
+    <div id="modal-terminal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-2 sm:p-4">
+        <div class="bg-slate-950 border border-slate-700 rounded-2xl w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
+                    <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
+                    <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+                    <span class="ml-2 text-xs font-mono font-bold text-emerald-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-terminal"></i> <span id="terminal-target-title">RouterOS Interactive Shell</span>
+                    </span>
+                </div>
+                <button onclick="closeTerminal()" class="text-slate-400 hover:text-white px-2 py-1 text-base">&times;</button>
+            </div>
+            <div id="terminal-container" class="flex-1 p-2 bg-[#0f172a] overflow-hidden"></div>
+        </div>
+    </div>
+
+    <!-- CUSTOM SPEED MODAL -->
+    <div id="modal-custom-speed" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-scale-up">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-indigo-400"></i> Atur Limit Kustom
+                </h3>
+                <button onclick="closeModal('modal-custom-speed')" class="text-slate-400 hover:text-white text-lg">&times;</button>
+            </div>
+            
+            <div class="mb-4">
+                <p class="text-xs text-slate-400" id="custom-modal-dev-info">Perangkat: --</p>
+                <input type="hidden" id="custom-modal-ip">
+                <input type="hidden" id="custom-modal-mac">
+            </div>
+
+            <!-- Quick Speed Chips -->
+            <div class="mb-4">
+                <label class="block text-xs text-slate-400 mb-1.5">Pilihan Cepat Kecepatan:</label>
+                <div class="grid grid-cols-5 gap-1.5">
+                    <button type="button" onclick="setSliderPreset(1)" class="px-2 py-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-[11px] font-mono text-slate-300 hover:text-white transition">1M</button>
+                    <button type="button" onclick="setSliderPreset(2)" class="px-2 py-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-[11px] font-mono text-slate-300 hover:text-white transition">2M</button>
+                    <button type="button" onclick="setSliderPreset(4)" class="px-2 py-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-[11px] font-mono text-slate-300 hover:text-white transition">4M</button>
+                    <button type="button" onclick="setSliderPreset(8)" class="px-2 py-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-[11px] font-mono text-slate-300 hover:text-white transition">8M</button>
+                    <button type="button" onclick="setSliderPreset(10)" class="px-2 py-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-[11px] font-mono text-slate-300 hover:text-white transition">10M</button>
+                    <button type="button" onclick="setSliderPreset(15)" class="px-2 py-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-[11px] font-mono text-slate-300 hover:text-white transition">15M</button>
+                    <button type="button" onclick="setSliderPreset(20)" class="px-2 py-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-[11px] font-mono text-slate-300 hover:text-white transition">20M</button>
+                    <button type="button" onclick="setSliderPreset(30)" class="px-2 py-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-[11px] font-mono text-slate-300 hover:text-white transition">30M</button>
+                    <button type="button" onclick="setSliderPreset(50)" class="px-2 py-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-[11px] font-mono text-slate-300 hover:text-white transition">50M</button>
+                    <button type="button" onclick="setSliderPreset(0)" class="px-2 py-1 bg-rose-900/40 hover:bg-rose-600 rounded-lg text-[11px] font-mono text-rose-300 hover:text-white transition">0M</button>
+                </div>
+            </div>
+
+            <!-- Download Slider -->
+            <div class="mb-4">
+                <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-400">Batas Download:</span>
+                    <span id="custom-down-val" class="font-mono font-bold text-emerald-400">4M</span>
+                </div>
+                <input type="range" id="custom-down-slider" min="0" max="50" value="4" oninput="updateSliderLabels()"
+                       class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+                    <span>0M</span>
+                    <span>10M</span>
+                    <span>25M</span>
+                    <span>50M</span>
+                </div>
+            </div>
+
+            <!-- Upload Slider -->
+            <div class="mb-5">
+                <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-400">Batas Upload:</span>
+                    <span id="custom-up-val" class="font-mono font-bold text-indigo-400">4M</span>
+                </div>
+                <input type="range" id="custom-up-slider" min="0" max="30" value="4" oninput="updateSliderLabels()"
+                       class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+                    <span>0M</span>
+                    <span>10M</span>
+                    <span>20M</span>
+                    <span>30M</span>
+                </div>
+            </div>
+
+            <!-- Priority Selector -->
+            <div class="mb-6">
+                <label class="block text-xs text-slate-400 mb-1">Prioritas Antrean (QoS Priority):</label>
+                <select id="custom-prio-select" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                    <option value="1">Prioritas 1 (Tertinggi - Gaming / Server)</option>
+                    <option value="4">Prioritas 4 (Tinggi - Streaming Video)</option>
+                    <option value="6">Prioritas 6 (Sedang - Web Browsing)</option>
+                    <option value="8" selected>Prioritas 8 (Standar / Umum)</option>
+                </select>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeModal('modal-custom-speed')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">Batal</button>
+                <button onclick="submitCustomSpeed()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-lg shadow-indigo-600/30">Terapkan Limit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EDIT DEVICE ALIAS MODAL -->
+    <div id="modal-edit-device" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-scale-up">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-cyan-400"></i> Rename Perangkat & Sinkron ke MikroTik
+                </h3>
+                <button onclick="closeModal('modal-edit-device')" class="text-slate-400 hover:text-white text-lg">&times;</button>
+            </div>
+
+            <input type="hidden" id="edit-dev-ip">
+            <input type="hidden" id="edit-dev-mac">
+
+            <div class="space-y-4 mb-6">
+                <div class="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3 text-[11px] text-cyan-200 leading-relaxed">
+                    <i class="fa-solid fa-circle-info text-cyan-300 mr-1"></i>
+                    Nama akan disimpan di database dashboard dan disinkronkan ke comment DHCP Lease MikroTik agar terlihat juga di Winbox/CLI.
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Nama / Alias Perangkat:</label>
+                    <input type="text" id="edit-dev-alias" placeholder="contoh: Laptop Kerja / HP Ruang Tamu" 
+                           class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Tipe / Ikon Perangkat:</label>
+                    <select id="edit-dev-type" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                        <option value="phone">📱 Smartphone</option>
+                        <option value="pc">💻 Desktop PC / Workstation</option>
+                        <option value="laptop">💻 Laptop</option>
+                        <option value="tv">📺 Smart TV</option>
+                        <option value="server">🖥️ Server</option>
+                        <option value="iot">⚡ IoT / ESP32</option>
+                        <option value="guest">👤 Tamu / Guest</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Kategori / Grup:</label>
+                    <input type="text" id="edit-dev-group" placeholder="contoh: Family, Server & Core, IoT" 
+                           class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Catatan Tambahan:</label>
+                    <input type="text" id="edit-dev-notes" placeholder="Opsional" 
+                           class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeModal('modal-edit-device')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">Batal</button>
+                <button onclick="submitDeviceAlias()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-lg shadow-indigo-600/30">Simpan Perubahan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD SCHEDULE MODAL -->
+    <div id="modal-add-schedule" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-scale-up">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-clock text-indigo-400"></i> Buat Jadwal Otomasi Bandwidth
+                </h3>
+                <button onclick="closeModal('modal-add-schedule')" class="text-slate-400 hover:text-white text-lg">&times;</button>
+            </div>
+
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Pilih Perangkat Target:</label>
+                    <select id="sched-dev-select" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Nama Aturan Jadwal:</label>
+                    <input type="text" id="sched-name" placeholder="contoh: Limit Malam Anak" 
+                           class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Jam Mulai:</label>
+                        <input type="time" id="sched-start" value="22:00" 
+                               class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Jam Berakhir:</label>
+                        <input type="time" id="sched-end" value="06:00" 
+                               class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Aksi Kecepatan Saat Jadwal Aktif:</label>
+                    <select id="sched-action" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+                        <option value="blocked">⛔ Putus / Blokir Internet (0 Mbps)</option>
+                        <option value="low_1m" selected>🐌 Hemat Kuota (1 Mbps)</option>
+                        <option value="sosmed_2m">📱 Sosmed & Chat (2 Mbps)</option>
+                        <option value="standard_4m">⚡ Standar (4 Mbps)</option>
+                        <option value="full">🚀 Full Speed (1 Gbps)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeModal('modal-add-schedule')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">Batal</button>
+                <button onclick="submitSchedule()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-lg shadow-indigo-600/30">Simpan Jadwal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SETTINGS & POWER MODAL -->
+    <div id="modal-settings" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-scale-up">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-gear text-slate-400"></i> Pengaturan & Power Router
+                </h3>
+                <button onclick="closeModal('modal-settings')" class="text-slate-400 hover:text-white text-lg">&times;</button>
+            </div>
+
+            <div class="space-y-4 mb-6">
+                <div class="bg-slate-800/60 p-3.5 rounded-xl border border-slate-700 text-xs space-y-2">
+                    <div class="flex justify-between"><span class="text-slate-400">Target Router:</span> <span id="settings-target-router" class="font-mono font-bold text-slate-200">192.168.88.1</span></div>
+                    <div class="flex justify-between"><span class="text-slate-400">Model & Arch:</span> <span id="settings-router-model" class="font-mono text-slate-200">MikroTik RouterOS</span></div>
+                    <div class="flex justify-between"><span class="text-slate-400">Protokol:</span> <span id="settings-transport-protocol" class="font-mono text-emerald-400">SSH CLI</span></div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-400">FastTrack Bypass:</span> 
+                        <span id="settings-fasttrack-status" class="font-mono px-2 py-0.5 rounded text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Disabled (QoS Ready)</span>
+                    </div>
+                </div>
+
+                <!-- FastTrack & QoS Optimization -->
+                <div class="bg-slate-800/40 border border-slate-700 rounded-xl p-3.5 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="text-xs font-semibold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-gauge-high text-cyan-400"></i> FastTrack QoS Toggle
+                            </h4>
+                            <p class="text-[11px] text-slate-400">Nonaktifkan FastTrack agar Simple Queue dapat membatasi kecepatan secara akurat.</p>
+                        </div>
+                        <button id="btn-toggle-fasttrack" onclick="toggleFastTrack()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-medium transition">
+                            Cek Status
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Clean Detach / Uninstall -->
+                <div class="bg-amber-950/20 border border-amber-900/40 rounded-xl p-3.5">
+                    <h4 class="text-xs font-semibold text-amber-400 flex items-center gap-1.5 mb-1">
+                        <i class="fa-solid fa-broom text-amber-400"></i> Clean Detach (Safe Uninstall)
+                    </h4>
+                    <p class="text-[11px] text-slate-400 mb-2">Hapus seluruh antrean BWM dari router dan pulihkan aturan FastTrack firewall ke kondisi awal bawaan pabrik.</p>
+                    <button onclick="triggerCleanDetach()" class="w-full py-1.5 bg-amber-600/80 hover:bg-amber-500 text-white rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-rotate-left"></i> Bersihkan Konfigurasi Router (Clean Detach)
+                    </button>
+                </div>
+
+                <!-- Danger Zone: Router Reboot -->
+                <div class="bg-rose-950/20 border border-rose-900/50 rounded-xl p-3.5">
+                    <h4 class="text-xs font-semibold text-rose-400 flex items-center gap-1.5 mb-1">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Tindakan Daya (Power Actions)
+                    </h4>
+                    <p class="text-[11px] text-slate-400 mb-3">Reboot router secara aman dari jarak jauh. Koneksi internet akan terputus ±30 detik.</p>
+                    <button onclick="triggerReboot()" class="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 shadow-lg shadow-rose-600/30">
+                        <i class="fa-solid fa-power-off"></i> Reboot Router MikroTik
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button onclick="closeModal('modal-settings')" class="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-[9999] space-y-2 pointer-events-none"></div>
+
+    <!-- JS Application Script -->
+    <script src="/static/app.js?v=3.0.0"></script>
+</body>
+</html>

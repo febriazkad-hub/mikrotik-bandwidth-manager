@@ -1,0 +1,32 @@
+{
+  "mikrotik": {
+    "host": "192.168.88.1",
+    "port": 22,
+    "username": "admin",
+    "password": "",
+    "timeout": 5
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 5678,
+    "admin_pin": "",
+    "debug": false
+  },
+  "telegram": {
+    "enabled": false,
+    "bot_token": "",
+    "allowed_chat_ids": [],
+    "notify_new_devices": true,
+    "notify_wan_failover": true
+  },
+  "bandwidth_defaults": {
+    "full_speed_queue": "BWM-BYPASS-GROUP",
+    "default_limit_queue": "BWM-DEFAULT-PCQ",
+    "guest_limit_queue": "LIMIT-GUEST-2M",
+    "wan_interface_primary": "ether1",
+    "wan_interface_backup": ""
+  },
+  "database": {
+    "db_path": "data/mikrotik_manager.db"
+  }
+}

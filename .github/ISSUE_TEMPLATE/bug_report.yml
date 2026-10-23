@@ -1,0 +1,44 @@
+name: 🐛 Laporan Bug (Bug Report)
+description: Laporkan kendala teknis atau error yang terjadi pada MikroTik Bandwidth Manager
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Terima kasih telah melaporkan bug! Mohon sertakan detail yang jelas agar kami dapat mereproduksinya.
+  - type: input
+    id: router_model
+    attributes:
+      label: Model Router MikroTik
+      placeholder: misal hAP lite (RB941-2nD), RB750Gr3, hAP ax2
+    validations:
+      required: true
+  - type: input
+    id: ros_version
+    attributes:
+      label: Versi RouterOS
+      placeholder: misal v6.49.15, v7.14.3
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Deskripsi Masalah
+      placeholder: Jelaskan apa yang terjadi dan apa yang seharusnya diharapkan...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Langkah untuk Mereproduksi
+      placeholder: |
+        1. Buka dashboard di port 5678
+        2. Klik tombol ...
+        3. Muncul error ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log / Error Traceback
+      placeholder: Salin log container atau terminal di sini...

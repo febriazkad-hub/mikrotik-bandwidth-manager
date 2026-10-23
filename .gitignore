@@ -1,0 +1,38 @@
+# Environment & Secrets (Never commit secrets to git!)
+.env
+*.env
+config.json
+*.bak
+*.bak*
+
+# SQLite Database & Data Directory
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/*.predeploy*
+*.rsc
+
+# Test Binaries & Archives
+*.zip
+*.tar
+*.tar.gz
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Agent / Local Scratch
+.planning/
+.jules/
+
+# IDE & OS Metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

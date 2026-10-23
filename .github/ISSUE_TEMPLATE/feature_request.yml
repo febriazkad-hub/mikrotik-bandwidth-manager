@@ -1,0 +1,24 @@
+name: 💡 Usulan Fitur (Feature Request)
+description: Usulkan ide atau fitur baru untuk pengembangan ke depan
+title: "[FEATURE]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Masalah apa yang ingin Anda selesaikan?
+      placeholder: Jelaskan keterbatasan saat ini atau skenario jaringan yang dihadapi...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solusi yang Anda usulkan
+      placeholder: Jelaskan bagaimana fitur ini seharusnya bekerja...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatif yang telah dipertimbangkan
+      placeholder: Apakah ada solusi alternatif atau workaround yang pernah Anda coba?

@@ -1,0 +1,43 @@
+name: 📶 Laporan Kompatibilitas Router (Hardware Compatibility)
+description: Laporkan pengujian kompatibilitas perangkat MikroTik Anda ke matriks komunitas
+title: "[COMPAT]: "
+labels: ["hardware-compatibility"]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Model Perangkat MikroTik
+      placeholder: misal RB941-2nD (hAP lite), RB750Gr3 (hEX), hAP ax3, CCR2004
+    validations:
+      required: true
+  - type: input
+    id: architecture
+    attributes:
+      label: Arsitektur CPU
+      placeholder: misal smips, mmips, arm, arm64, x86
+    validations:
+      required: true
+  - type: dropdown
+    id: ros_version
+    attributes:
+      label: Versi Mayor RouterOS
+      options:
+        - "RouterOS v6.x (Long-term / Stable)"
+        - "RouterOS v7.x (Stable)"
+    validations:
+      required: true
+  - type: dropdown
+    id: test_status
+    attributes:
+      label: Status Pengujian
+      options:
+        - "🟢 Berfungsi 100% Sempurna (Zero-Config, QoS, Telemetry, WOL)"
+        - "🟡 Berfungsi dengan Catatan (Sebagian fitur butuh penyesuaian)"
+        - "🔴 Ada Kendala / Error"
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Catatan Performa & Detail Jaringan
+      placeholder: Contoh: Beban CPU rata-rata 12% pada 20 client aktif, FastTrack nonaktif berjalan mulus...

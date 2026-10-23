@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "name": "MikroTik Bandwidth Manager",
+  "tagline": "Automated QoS Bandwidth Limiter, Live Telemetry & Device Manager for MikroTik RouterOS",
+  "description": "Full-Featured Web GUI, Bandwidth QoS, In-Browser Terminal, Diagnostics, and Automation for MikroTik RouterOS (v6 & v7). Designed for home and small office networks.",
+  "developer": "febriazkad-hub",
+  "icon": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/mikrotik-light.svg",
+  "category": "Network",
+  "port_map": "5678",
+  "index": "/",
+  "scheme": "http",
+  "screenshot_link": [
+    "https://raw.githubusercontent.com/febriazkad-hub/mikrotik-bandwidth-manager/main/docs/preview.png"
+  ]
+}

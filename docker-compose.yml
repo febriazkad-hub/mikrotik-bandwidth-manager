@@ -1,0 +1,29 @@
+services:
+  mikrotik-bandwidth-manager:
+    image: ghcr.io/febriazkad-hub/mikrotik-bandwidth-manager:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mikrotik-bandwidth-manager
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - MIKROTIK_HOST=192.168.88.1
+      - MIKROTIK_PORT=22
+      - MIKROTIK_USER=admin
+      - MIKROTIK_PASS=
+      - WEB_PORT=5678
+      - TELEGRAM_BOT_TOKEN=
+      - TELEGRAM_ALLOWED_CHAT_ID=
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5678/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      icon: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/mikrotik-light.svg"
+      category: "Network"

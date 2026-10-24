@@ -78,6 +78,9 @@ class Database:
                     cpu_load INTEGER
                 )
             """)
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_traffic_history_timestamp ON traffic_history (timestamp)
+            """)
 
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS routeros_logs (
@@ -92,6 +95,9 @@ class Database:
             """)
             await db.execute("""
                 CREATE INDEX IF NOT EXISTS idx_ros_logs_id ON routeros_logs (id DESC)
+            """)
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_ros_logs_log_time ON routeros_logs (log_time)
             """)
 
             await db.execute("""
@@ -214,11 +220,15 @@ class Database:
 
     async def record_traffic_point(self, rx_bps: int, tx_bps: int, cpu_load: int):
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("""
+            cursor = await db.execute("""
                 INSERT INTO traffic_history (rx_bps, tx_bps, cpu_load)
                 VALUES (?, ?, ?)
             """, (rx_bps, tx_bps, cpu_load))
-            await db.execute("DELETE FROM traffic_history WHERE timestamp <= datetime('now', '-1 day')")
+
+            # Bolt ⚡: Batch delete operations to run approx. once a minute to prevent constant SQLite locking
+            if cursor.lastrowid and cursor.lastrowid % 60 == 0:
+                await db.execute("DELETE FROM traffic_history WHERE timestamp <= datetime('now', '-1 day')")
+
             await db.commit()
 
     async def insert_routeros_logs(self, logs: List[Dict[str, Any]]) -> int:

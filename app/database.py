@@ -226,6 +226,12 @@ class Database:
             return 0
         inserted = 0
         async with aiosqlite.connect(self.db_path) as db:
+            # ⚡ Bolt: Batch fetch recent logs to avoid N+1 queries during de-duplication
+            cursor = await db.execute("SELECT log_time, topics, message FROM routeros_logs ORDER BY id DESC LIMIT 2000")
+            recent_rows = await cursor.fetchall()
+            existing_logs = {(row[0], row[1], row[2]) for row in recent_rows}
+
+            insert_data = []
             for log in logs:
                 log_time = log.get("time", "")
                 topics = log.get("topics", "")
@@ -233,26 +239,27 @@ class Database:
                 severity = log.get("severity", "info")
                 source = log.get("source", "routeros")
 
-                # De-duplicate: check if exact log_time, topics, and message exists in the latest 100 entries
-                cursor = await db.execute(
-                    "SELECT id FROM routeros_logs WHERE log_time = ? AND topics = ? AND message = ? LIMIT 1",
-                    (log_time, topics, message)
-                )
-                existing = await cursor.fetchone()
-                if not existing:
-                    await db.execute("""
-                        INSERT INTO routeros_logs (log_time, topics, message, severity, source)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (log_time, topics, message, severity, source))
-                    inserted += 1
+                log_key = (log_time, topics, message)
+                if log_key not in existing_logs:
+                    insert_data.append((log_time, topics, message, severity, source))
+                    existing_logs.add(log_key)
 
-            # Keep maximum 5,000 logs in local SQLite storage
-            await db.execute("""
-                DELETE FROM routeros_logs WHERE id NOT IN (
-                    SELECT id FROM routeros_logs ORDER BY id DESC LIMIT 5000
-                )
-            """)
-            await db.commit()
+            if insert_data:
+                # ⚡ Bolt: Use executemany for batch insertion
+                await db.executemany("""
+                    INSERT INTO routeros_logs (log_time, topics, message, severity, source)
+                    VALUES (?, ?, ?, ?, ?)
+                """, insert_data)
+                inserted = len(insert_data)
+
+            if inserted > 0:
+                # Keep maximum 5,000 logs in local SQLite storage
+                await db.execute("""
+                    DELETE FROM routeros_logs WHERE id NOT IN (
+                        SELECT id FROM routeros_logs ORDER BY id DESC LIMIT 5000
+                    )
+                """)
+                await db.commit()
         return inserted
 
     async def get_routeros_logs(

@@ -95,6 +95,7 @@ def parse_slash_pair_bps(value: str) -> Tuple[int, int]:
 # Pre-compile the regex to avoid dynamic compilation overhead inside the parsing loop
 # This significantly improves performance when parsing large RouterOS CLI outputs.
 QUEUE_FIELD_PATTERN = re.compile(r'(name|max-limit|priority|rate|bytes)=("[^"]*"|\S+)')
+LEASE_FIELD_PATTERN = re.compile(r'(?:^|\s)(address|mac-address|host-name|status|last-seen)=("[^"]*"|\S+)')
 
 def extract_queue_fields(block_text: str) -> Dict[str, str]:
     """Extract RouterOS simple queue key=value fields from wrapped detail/stats blocks."""
@@ -351,13 +352,8 @@ class MikroTikEngine:
 
         devices_dict = {}
         for lb in parse_ros_detail(leases_raw):
-            address = ""
-            mac = ""
-            hostname = "Unknown"
-            status = "offline"
             is_dynamic = False
             comment = ""
-            last_seen = ""
 
             for line in lb.splitlines():
                 line = line.strip()
@@ -365,19 +361,16 @@ class MikroTikEngine:
                     comment = line.replace(";;;", "").strip()
                 if "D address=" in line or line.startswith("D "):
                     is_dynamic = True
-                
-                parts = line.split()
-                for p in parts:
-                    if p.startswith("address="):
-                        address = p.replace("address=", "")
-                    elif p.startswith("mac-address="):
-                        mac = p.replace("mac-address=", "").upper()
-                    elif p.startswith("host-name="):
-                        hostname = p.replace("host-name=", "").replace("\"", "")
-                    elif p.startswith("status="):
-                        status = p.replace("status=", "")
-                    elif p.startswith("last-seen="):
-                        last_seen = p.replace("last-seen=", "")
+
+            fields = {}
+            for match in LEASE_FIELD_PATTERN.finditer(lb):
+                fields[match.group(1)] = match.group(2).strip('"')
+
+            address = fields.get("address", "")
+            mac = fields.get("mac-address", "").upper()
+            hostname = fields.get("host-name", "Unknown")
+            status = fields.get("status", "offline")
+            last_seen = fields.get("last-seen", "")
 
             if address and mac:
                 rate_mode = "default"

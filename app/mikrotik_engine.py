@@ -16,11 +16,17 @@ from app.vendor_lookup import get_vendor_from_mac
 def lookup_vendor(mac: str) -> str:
     return get_vendor_from_mac(mac)
 
+# Bolt ⚡: Pre-compiled regex patterns to eliminate dynamic compilation overhead in hot-paths
+ROS_DETAIL_PATTERN = re.compile(r'^\s*\d+\s+')
+TARGET_MATCH_PATTERN = re.compile(r'target=([0-9\.\,\s/]+?)(?=\s+(?:parent|packet-marks|priority|queue|limit-at|max-limit|burst|comment)=|$)', re.DOTALL)
+IP_PATTERN = re.compile(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
+RATE_PATTERN = re.compile(r'^([\d\.]+)([kmg]?bps)$')
+
 def parse_ros_detail(text: str) -> List[str]:
     blocks = []
     current = []
     for line in text.splitlines():
-        if re.match(r'^\s*\d+\s+', line):
+        if ROS_DETAIL_PATTERN.match(line):
             if current:
                 blocks.append('\n'.join(current))
                 current = []
@@ -32,11 +38,11 @@ def parse_ros_detail(text: str) -> List[str]:
 
 def extract_ips_from_target(block_text: str) -> List[str]:
     """Robustly extract all target IP addresses belonging to target= field regardless of multi-line wrapping"""
-    target_match = re.search(r'target=([0-9\.\,\s/]+?)(?=\s+(?:parent|packet-marks|priority|queue|limit-at|max-limit|burst|comment)=|$)', block_text, re.DOTALL)
+    target_match = TARGET_MATCH_PATTERN.search(block_text)
     if target_match:
         target_content = target_match.group(1)
-        return sorted(list(set(re.findall(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', target_content))))
-    return sorted(list(set(re.findall(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', block_text.split('parent=')[0] if 'parent=' in block_text else block_text))))
+        return sorted(list(set(IP_PATTERN.findall(target_content))))
+    return sorted(list(set(IP_PATTERN.findall(block_text.split('parent=')[0] if 'parent=' in block_text else block_text))))
 
 def extract_first_ip_from_target(block_text: str) -> str:
     ips = extract_ips_from_target(block_text)
@@ -46,7 +52,7 @@ def parse_rate_to_bps(val_str: str) -> int:
     if not val_str or val_str == '0' or val_str.lower() == '0bps':
         return 0
     val_str = val_str.strip().lower().replace(' ', '')
-    match = re.match(r'^([\d\.]+)([kmg]?bps)$', val_str)
+    match = RATE_PATTERN.match(val_str)
     if not match:
         return 0
     num = float(match.group(1))
@@ -836,18 +842,23 @@ class MikroTikEngine:
         except Exception as e:
             return False, f"Gagal mengirim perintah reboot: {e}"
 
+    LOG_SPLIT_PATTERN = re.compile(r'\n(?=\s*time=)')
+    LOG_TIME_PATTERN = re.compile(r'time=([^\s]+)')
+    LOG_TOPICS_PATTERN = re.compile(r'topics=([^\s]+)')
+    LOG_MSG_PATTERN = re.compile(r'message=\"(.*?)\"', re.DOTALL)
+
     async def sync_routeros_logs(self) -> Tuple[int, str]:
         """Fetch logs from MikroTik RouterOS and archive them into local SQLite database"""
         try:
             output = await self.exec_cmd("/log print detail without-paging")
             entries = []
-            blocks = re.split(r'\n(?=\s*time=)', output.strip())
+            blocks = self.LOG_SPLIT_PATTERN.split(output.strip())
             for b in blocks:
                 if not b.strip():
                     continue
-                time_m = re.search(r'time=([^\s]+)', b)
-                topics_m = re.search(r'topics=([^\s]+)', b)
-                msg_m = re.search(r'message=\"(.*?)\"', b, re.DOTALL)
+                time_m = self.LOG_TIME_PATTERN.search(b)
+                topics_m = self.LOG_TOPICS_PATTERN.search(b)
+                msg_m = self.LOG_MSG_PATTERN.search(b)
                 if time_m and topics_m and msg_m:
                     t = time_m.group(1).strip()
                     top = topics_m.group(1).strip()

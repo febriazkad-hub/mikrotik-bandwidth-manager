@@ -17,12 +17,14 @@ def _load_oui_database():
         except Exception:
             _OUI_CACHE = {}
 
+MAC_CLEANUP_PATTERN = re.compile(r"[^0-9A-Fa-f]")
+
 def get_vendor_from_mac(mac: str) -> str:
     """Resolve device hardware vendor from MAC address using offline OUI lookup"""
     if not mac:
         return "Unknown"
     _load_oui_database()
-    clean_mac = re.sub(r"[^0-9A-Fa-f]", "", mac).upper()
+    clean_mac = MAC_CLEANUP_PATTERN.sub("", mac).upper()
     if len(clean_mac) < 6:
         return "Unknown"
     prefix = f"{clean_mac[0:2]}:{clean_mac[2:4]}:{clean_mac[4:6]}"

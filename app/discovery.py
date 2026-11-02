@@ -4,11 +4,17 @@ from typing import Dict, Any, Optional
 class RouterDiscovery:
     """Zero-Config Discovery Engine for MikroTik RouterOS"""
 
+    # Pre-compiled regular expressions for parsing hot-paths
+    KEY_VALUE_PATTERN = re.compile(r'([a-zA-Z0-9_\-]+)=("([^"]*)"|([^\s]+))')
+    REACHABLE_VIA_PATTERN = re.compile(r'reachable via\s+([a-zA-Z0-9_\-]+)')
+    IPV4_EXACT_PATTERN = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
+    VERSION_PREFIX_PATTERN = re.compile(r'^(\d+)')
+
     @staticmethod
     def parse_key_value(line: str) -> Dict[str, str]:
         """Parses RouterOS terse format '0  name=bridge ...' into dict"""
         res = {}
-        for match in re.finditer(r'([a-zA-Z0-9_\-]+)=("([^"]*)"|([^\s]+))', line):
+        for match in RouterDiscovery.KEY_VALUE_PATTERN.finditer(line):
             key = match.group(1)
             val = match.group(3) if match.group(3) is not None else match.group(4)
             res[key] = val
@@ -25,13 +31,13 @@ class RouterDiscovery:
             kv = cls.parse_key_value(line)
             gateway_status = kv.get("gateway-status", "")
             # e.g., 'gateway-status=192.168.1.1 reachable via ether1'
-            gw_match = re.search(r'reachable via\s+([a-zA-Z0-9_\-]+)', gateway_status)
+            gw_match = cls.REACHABLE_VIA_PATTERN.search(gateway_status)
             if gw_match:
                 return gw_match.group(1)
             
             # Direct gateway interface
             gw = kv.get("gateway", "")
-            if gw and not re.match(r'^\d+\.\d+\.\d+\.\d+$', gw) and gw != "%":
+            if gw and not cls.IPV4_EXACT_PATTERN.match(gw) and gw != "%":
                 return gw
             
             interface = kv.get("interface", "")
@@ -96,7 +102,7 @@ class RouterDiscovery:
             v = parts[1].strip()
             if k == "version":
                 res["version"] = v
-                match = re.match(r'^(\d+)', v)
+                match = cls.VERSION_PREFIX_PATTERN.match(v)
                 if match:
                     res["major_version"] = int(match.group(1))
             elif k in ["architecture-name", "architecture"]:

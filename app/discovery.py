@@ -1,6 +1,8 @@
 import re
 from typing import Dict, Any, Optional
 
+_KV_PATTERN = re.compile(r'([a-zA-Z0-9_\-]+)=("([^"]*)"|([^\s]+))')
+
 class RouterDiscovery:
     """Zero-Config Discovery Engine for MikroTik RouterOS"""
 
@@ -8,7 +10,7 @@ class RouterDiscovery:
     def parse_key_value(line: str) -> Dict[str, str]:
         """Parses RouterOS terse format '0  name=bridge ...' into dict"""
         res = {}
-        for match in re.finditer(r'([a-zA-Z0-9_\-]+)=("([^"]*)"|([^\s]+))', line):
+        for match in _KV_PATTERN.finditer(line):
             key = match.group(1)
             val = match.group(3) if match.group(3) is not None else match.group(4)
             res[key] = val

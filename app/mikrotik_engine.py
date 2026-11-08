@@ -8,10 +8,15 @@ import logging
 from typing import List, Dict, Optional, Any, Tuple
 from app.models import Device, RouterStats
 from app.database import db_instance
+from app.vendor_lookup import get_vendor_from_mac
 
 logger = logging.getLogger("mikrotik_engine")
 
-from app.vendor_lookup import get_vendor_from_mac
+# Pre-compiled regex patterns for parsing routeros logs
+_LOG_BLOCK_PATTERN = re.compile(r'\n(?=\s*time=)')
+_LOG_TIME_PATTERN = re.compile(r'time=([^\s]+)')
+_LOG_TOPICS_PATTERN = re.compile(r'topics=([^\s]+)')
+_LOG_MSG_PATTERN = re.compile(r'message=\"(.*?)\"', re.DOTALL)
 
 def lookup_vendor(mac: str) -> str:
     return get_vendor_from_mac(mac)
@@ -841,13 +846,13 @@ class MikroTikEngine:
         try:
             output = await self.exec_cmd("/log print detail without-paging")
             entries = []
-            blocks = re.split(r'\n(?=\s*time=)', output.strip())
+            blocks = _LOG_BLOCK_PATTERN.split(output.strip())
             for b in blocks:
                 if not b.strip():
                     continue
-                time_m = re.search(r'time=([^\s]+)', b)
-                topics_m = re.search(r'topics=([^\s]+)', b)
-                msg_m = re.search(r'message=\"(.*?)\"', b, re.DOTALL)
+                time_m = _LOG_TIME_PATTERN.search(b)
+                topics_m = _LOG_TOPICS_PATTERN.search(b)
+                msg_m = _LOG_MSG_PATTERN.search(b)
                 if time_m and topics_m and msg_m:
                     t = time_m.group(1).strip()
                     top = topics_m.group(1).strip()

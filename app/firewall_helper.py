@@ -1,6 +1,9 @@
 import re
 from typing import Dict, Any, Tuple
 
+_RULE_ID_PATTERN = re.compile(r'^\s*(\*?[0-9a-fA-F]+|\d+)')
+_COMMENT_PATTERN = re.compile(r'comment="([^"]*)"')
+
 class FirewallHelper:
     """Manages RouterOS FastTrack firewall rule non-destructively for accurate QoS"""
 
@@ -30,7 +33,7 @@ class FirewallHelper:
         # Parse output line
         line = out.strip().splitlines()[0]
         # Match rule ID at start
-        id_match = re.match(r'^\s*(\*?[0-9a-fA-F]+|\d+)', line)
+        id_match = _RULE_ID_PATTERN.match(line)
         rule_id = id_match.group(1) if id_match else None
 
         # Check disabled flag
@@ -38,7 +41,7 @@ class FirewallHelper:
         if "disabled=yes" in line or " X " in line:
             disabled = True
 
-        comment_match = re.search(r'comment="([^"]*)"', line)
+        comment_match = _COMMENT_PATTERN.search(line)
         comment = comment_match.group(1) if comment_match else ""
 
         return {

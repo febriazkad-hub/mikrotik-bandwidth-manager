@@ -50,6 +50,11 @@ services:
               target: /app/data
               bind:
                 create_host_path: true
+            - type: bind
+              source: /home/mdgi/apps/MikroTik_Bandwidth_Manager/app
+              target: /app/app
+              bind:
+                create_host_path: true
 networks:
     default:
         name: mikrotik_bandwidth_manager_default

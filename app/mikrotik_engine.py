@@ -150,6 +150,30 @@ class MikroTikEngine:
         self._cached_export_time = 0.0
 
     def _connect_sync(self) -> paramiko.SSHClient:
+        # Legacy SSH-RSA (SHA-1) compatibility for RouterOS v6 on Paramiko 5.x
+        try:
+            from cryptography.hazmat.primitives import hashes
+            if hasattr(paramiko, "rsakey") and hasattr(paramiko.rsakey, "RSAKey"):
+                paramiko.rsakey.RSAKey.HASHES["ssh-rsa"] = hashes.SHA1
+        except Exception as e:
+            logger.debug(f"Could not enable legacy ssh-rsa in Paramiko: {e}")
+
+        # Resolve candidate private key
+        key_candidates = [
+            os.getenv("MIKROTIK_KEY_PATH", ""),
+            "/app/data/id_rsa_stb",
+            "data/id_rsa_stb",
+            os.path.expanduser("~/.ssh/id_rsa_stb")
+        ]
+        pkey = None
+        for kp in key_candidates:
+            if kp and os.path.isfile(kp):
+                try:
+                    pkey = paramiko.RSAKey.from_private_key_file(kp)
+                    break
+                except Exception as e:
+                    logger.debug(f"Failed loading key from {kp}: {e}")
+
         sock = None
         for local_ip in ['192.168.77.29', '192.168.77.14']:
             try:
@@ -170,7 +194,19 @@ class MikroTikEngine:
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         t = paramiko.Transport(sock)
-        t.connect(username=self.username, password=self.password)
+
+        if pkey:
+            try:
+                if hasattr(t, "_preferred_keys") and "ssh-rsa" not in t._preferred_keys:
+                    t._preferred_keys = tuple(list(t._preferred_keys) + ["ssh-rsa"])
+                t._preferred_pubkeys = ("ssh-rsa", "rsa-sha2-512", "rsa-sha2-256")
+                t.connect(username=self.username, pkey=pkey)
+            except Exception as e:
+                logger.warning(f"Key-based auth to MikroTik failed ({e}), attempting password fallback...")
+                t.connect(username=self.username, password=self.password)
+        else:
+            t.connect(username=self.username, password=self.password)
+
         client._transport = t
         return client
 
